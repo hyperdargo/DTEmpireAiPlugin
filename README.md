@@ -1,4 +1,4 @@
-# 🤖 DTEmpire AI Chat Bot — Minecraft Plugin
+# 🤖 DTEmpire AI Chat Bot — Minecraft Plugin 
 
 **Private AI chat for your Minecraft server.**
 
