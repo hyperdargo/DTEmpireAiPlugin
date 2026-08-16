@@ -1,6 +1,8 @@
-# DTEmpire AI Chat Bot — Minecraft Plugin
+# 🤖 DTEmpire AI Chat Bot — Minecraft Plugin
 
-**Private AI chat for your Minecraft server.** Talk to an AI directly from the game — start a session, chat privately, and only you and the AI see the conversation.
+**Private AI chat for your Minecraft server.**
+
+Talk to an AI directly from Minecraft. Start a private session, chat naturally, and get AI responses without your messages being shown to other players.
 
 ![Minecraft](https://img.shields.io/badge/Minecraft-1.21.4-blue)
 ![Paper](https://img.shields.io/badge/Paper-1.21.4%2B-white)
@@ -8,7 +10,14 @@
 ![License](https://img.shields.io/badge/License-MIT-green)
 ![Version](https://img.shields.io/badge/Version-1.0.0-purple)
 
----
+<p align="center">
+  <img
+    src="https://github.com/user-attachments/assets/4e4e901e-6a09-4e5b-8d2e-8514a8c1cbcd"
+    alt="DTEmpire AI Chat Bot"
+    width="500"
+  />
+</p>
+
 
 ## ✨ Features
 
