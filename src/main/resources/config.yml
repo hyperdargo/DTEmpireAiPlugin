@@ -1,0 +1,36 @@
+# DTEmpireAIChat Configuration
+# API endpoint for the AI service (your OmniRoute /chat/completions endpoint)
+api:
+  # Base URL for the AI API (e.g., http://127.0.0.1:25607 or https://route.ankitgupta.com.np/v1)
+  base-url: "http://127.0.0.1:25607"
+  # Model name (must match your router's model name, e.g., DiscordBot)
+  model: "DiscordBot"
+  # API key for authentication (Bearer token)
+  api-key: ""
+  # Timeout in milliseconds
+  timeout-ms: 30000
+  # System prompt prefix for AI responses
+  system-prompt: "You are a helpful AI assistant in a Minecraft server. Keep responses concise (under 256 chars for chat)."
+
+# Chat session settings
+session:
+  # How long (seconds) a session stays active after last message
+  inactivity-timeout: 300
+  # Max messages to keep in conversation history per session
+  max-history: 20
+
+# Message formatting
+messages:
+  # Prefix for AI messages
+  ai-prefix: "&8[&bAI&8] &r"
+  # Color for player messages in private view
+  player-prefix: "&8[&aYou&8] &r"
+  # Help messages
+  usage-aichat: "&8[&bAI&8] &rUsage: &e/aichat &7<message> &8- Start/continue a private AI chat"
+  usage-aiexit: "&8[&bAI&8] &rUsage: &e/aiexit &8- End your private AI chat session"
+  session-started: "&8[&bAI&8] &aStarted private AI chat session. Type &e/aichat <message> &ato talk, &e/aiexit &ato end."
+  session-ended: "&8[&bAI&8] &cEnded your AI chat session."
+  session-already-active: "&8[&bAI&8] &eYou already have an active AI chat session. Use &e/aiexit &eto end it first."
+  no-active-session: "&8[&bAI&8] &cNo active AI chat session. Use &e/aichat <message> &cto start one."
+  ai-error: "&8[&bAI&8] &cError contacting AI service. Please try again."
+  api-not-configured: "&8[&bAI&8] &cAI API not configured. Ask an admin to set the API key."

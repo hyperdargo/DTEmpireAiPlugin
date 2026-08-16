@@ -1,0 +1,17 @@
+name: DTEmpireAIChat
+version: '1.0.0'
+main: com.dtempire.aichat.DTEmpireAIChatPlugin
+api-version: '1.21'
+description: Private AI chat with Minecraft — /aichat to start, /aiexit to stop. Responses are private to the requesting player.
+author: DargoTamber
+website: https://route.ankitgupta.com.np
+
+commands:
+  aichat:
+    description: Start or continue a private AI chat session
+    usage: /aichat <message>
+    aliases: [aic]
+  aiexit:
+    description: End your private AI chat session
+    usage: /aiexit
+    aliases: [aidone]
