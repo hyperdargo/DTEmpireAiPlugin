@@ -233,19 +233,95 @@ public class DiscordReporter {
             this.plugin = plugin;
             this.online = plugin.getServer().getOnlinePlayers().size();
             this.maxPlayers = plugin.getServer().getMaxPlayers();
-            Runtime rt = Runtime.getRuntime();
-            this.ramUsedMb = (rt.totalMemory() - rt.freeMemory()) / 1048576L;
-            // Use the configured allocation (how much RAM the server was GIVEN), else JVM max
-            long cfgRam = plugin.getConfig().getLong("tracking.resources.ram-max-mb", 0L);
-            this.ramMaxMb = cfgRam > 0 ? cfgRam : rt.maxMemory() / 1048576L;
+
+            // RAM: prefer Pterodactyl env, then cgroup, then JVM
+            this.ramMaxMb = readRamMaxMb();
+            this.ramUsedMb = readRamUsedMb();
+
+            // CPU: JVM process load (respects cgroup in modern JVMs)
             this.cpuPercent = round1(osCpuLoad() * 100.0);
+
+            // Storage: prefer Pterodactyl env, then df on working dir, then JVM
+            this.storageTotalGb = readStorageTotalGb();
+            this.storageUsedGb = readStorageUsedGb();
+        }
+
+        private long readRamMaxMb() {
+            // 1. Pterodactyl SERVER_MEMORY (bytes)
+            String envMem = System.getenv("SERVER_MEMORY");
+            if (envMem != null) {
+                try { return Long.parseLong(envMem) / 1048576L; } catch (NumberFormatException ignored) {}
+            }
+            // 2. cgroup v2 memory.max
+            long cg = readCgroupMemoryMax();
+            if (cg > 0) return cg / 1048576L;
+            // 3. JVM max heap
+            return Runtime.getRuntime().maxMemory() / 1048576L;
+        }
+
+        private long readRamUsedMb() {
+            // 1. cgroup v2 memory.current
+            long cg = readCgroupMemoryCurrent();
+            if (cg > 0) return cg / 1048576L;
+            // 2. JVM heap used
+            Runtime rt = Runtime.getRuntime();
+            return (rt.totalMemory() - rt.freeMemory()) / 1048576L;
+        }
+
+        private long readCgroupMemoryMax() {
+            // cgroup v2
+            String p = readFile("/sys/fs/cgroup/memory.max");
+            if (p != null && !p.trim().equals("max")) {
+                try { return Long.parseLong(p.trim()); } catch (NumberFormatException ignored) {}
+            }
+            // cgroup v1
+            p = readFile("/sys/fs/cgroup/memory/memory.limit_in_bytes");
+            if (p != null) {
+                try {
+                    long v = Long.parseLong(p.trim());
+                    // v1 often returns huge number (host limit) — cap at 1 TB sanity
+                    return v > 1099511627776L ? 0 : v;
+                } catch (NumberFormatException ignored) {}
+            }
+            return 0;
+        }
+
+        private long readCgroupMemoryCurrent() {
+            // cgroup v2
+            String p = readFile("/sys/fs/cgroup/memory.current");
+            if (p != null) {
+                try { return Long.parseLong(p.trim()); } catch (NumberFormatException ignored) {}
+            }
+            // cgroup v1
+            p = readFile("/sys/fs/cgroup/memory/memory.usage_in_bytes");
+            if (p != null) {
+                try { return Long.parseLong(p.trim()); } catch (NumberFormatException ignored) {}
+            }
+            return 0;
+        }
+
+        private long readStorageTotalGb() {
+            String envDisk = System.getenv("SERVER_DISK");
+            if (envDisk != null) {
+                try { return Long.parseLong(envDisk) / 1073741824L; } catch (NumberFormatException ignored) {}
+            }
             java.io.File root = new java.io.File(".");
-            long total = root.getTotalSpace() / 1073741824L;
-            long free = root.getFreeSpace() / 1073741824L;
-            // Use the configured storage allocation (how much disk the server was GIVEN), else full disk
-            long cfgStorage = plugin.getConfig().getLong("tracking.resources.storage-max-gb", 0L);
-            this.storageTotalGb = cfgStorage > 0 ? cfgStorage : total;
-            this.storageUsedGb = cfgStorage > 0 ? Math.min(cfgStorage, total - free) : total - free;
+            return root.getTotalSpace() / 1073741824L;
+        }
+
+        private long readStorageUsedGb() {
+            java.io.File root = new java.io.File(".");
+            long total = root.getTotalSpace();
+            long free = root.getFreeSpace();
+            return (total - free) / 1073741824L;
+        }
+
+        private String readFile(String path) {
+            try {
+                return new String(java.nio.file.Files.readAllBytes(java.nio.file.Paths.get(path))).trim();
+            } catch (Exception ignored) {
+                return null;
+            }
         }
 
         private double osCpuLoad() {

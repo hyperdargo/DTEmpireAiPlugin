@@ -61,6 +61,10 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
                         new java.io.InputStreamReader(def));
         getConfig().addDefaults(defaults);
         getConfig().options().copyDefaults(true);
+        // Fast-forward ONLY when user never set the key (absent → old default 15)
+        if (!getConfig().isSet("tracking.interval-minutes")) {
+            getConfig().set("tracking.interval-minutes", 1);
+        }
         saveConfig();
     }
 
