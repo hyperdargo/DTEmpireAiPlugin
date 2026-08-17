@@ -1,118 +1,171 @@
-# 🤖 DTEmpire AI Chat Bot — Minecraft Plugin 
+# DTEmpire AI Chat Plugin
 
-**Private AI chat for your Minecraft server.**
-
-Talk to an AI directly from Minecraft. Start a private session, chat naturally, and get AI responses without your messages being shown to other players.
-
-![Minecraft](https://img.shields.io/badge/Minecraft-1.21.4-blue)
-![Paper](https://img.shields.io/badge/Paper-1.21.4%2B-white)
-![Java](https://img.shields.io/badge/Java-17%2B-orange)
-![License](https://img.shields.io/badge/License-MIT-green)
-![Version](https://img.shields.io/badge/Version-1.0.0-purple)
-
-<p align="center">
-  <img
-    src="https://github.com/user-attachments/assets/4e4e901e-6a09-4e5b-8d2e-8514a8c1cbcd"
-    alt="DTEmpire AI Chat Bot"
-    width="500"
-  />
-</p>
-
-
-## ✨ Features
-
-- 🧠 **AI chat in-game** — `/aichat` puts you into a private AI chat session
-- 💬 **Normal chat becomes private** — while in AI mode, everything you type goes to the AI, and the AI replies. **Nobody else on the server can see it**
-- 🔒 **100% private** — messages and AI responses are only sent to you via `player.sendMessage()`
-- 🧵 **Conversation memory** — the AI remembers the last 20 messages of your session
-- ⏱️ **Auto-timeout** — sessions idle out after 5 minutes (configurable)
-- 🎨 **Polished chat formatting** — color-coded `[AI]` and `You:` prefixes
-- 🌐 **Any OpenAI-compatible endpoint** — works with OmniRoute, LocalAI, LiteLLM, or any `/v1/chat/completions` API
+A **Paper/Spigot Minecraft plugin** that adds:
+- **Private AI Chat** — players talk 1-on-1 with an AI via `/aichat`
+- **Live Discord Server Status** — one embed in your Discord channel that auto-updates (no spam)
+- **Join/Leave Tracking + Playtime Leaderboards** — persisted in SQLite (survives restarts)
+- **Minecraft-Only AI Filter** — AI refuses non-Minecraft topics
 
 ---
 
-## 📥 Installation
+## Features
 
-1. **Download** the latest `DTEmpireAIChat.jar` from [Releases](https://github.com/hyperdargo/DTEmpireAiPlugin/releases)
-2. Drop the jar into your server's `plugins/` folder
-3. **Restart** the server (or `/reload`)
-4. A `config.yml` is auto-generated at `plugins/DTEmpireAIChat/config.yml` — **open it and set your API key**
-5. Restart again and you're ready
-
----
-
-## ⚙️ Configuration
-
-```yaml
-# plugins/DTEmpireAIChat/config.yml
-api:
-  # Your AI endpoint (base URL without /chat/completions)
-  base-url: "http://127.0.0.1:25607"
-  # Model name — must match the model id on your router
-  model: "DiscordBot"
-  # Your API key (Bearer token). NEVER share this.
-  api-key: ""
-  timeout-ms: 30000
-  system-prompt: "You are a helpful AI assistant in a Minecraft server. Keep responses concise."
-
-session:
-  # Seconds of inactivity before the session auto-ends
-  inactivity-timeout: 300
-  # Max conversation history kept per session
-  max-history: 20
-```
-
-> ⚠️ **Never commit your `api-key` to git.** If your key leaks, regenerate it on the router side.
-
----
-
-## 🎮 Commands
-
+### 🤖 Private AI Chat
 | Command | Description |
 |---------|-------------|
-| `/aichat` | Enter AI chat mode. Everything you type becomes a private AI conversation |
-| `/aichat <message>` | Enter AI mode and send the first message right away |
-| `/aiexit` | Leave AI chat mode |
-| `/aic` | Alias for `/aichat` |
-| `/aidone` | Alias for `/aiexit` |
+| `/aichat <message>` | Start or continue a private AI chat |
+| `/aiexit` | End your AI chat session |
+| `/aihelp` | List AI commands |
 
-### How it works
+Each player gets their own private conversation. Messages are invisible to others.
 
-1. Type `/aichat` → you enter private AI mode
-   ```
-   [AI] You are now in AI chat mode. Just type normally to talk to the AI. Use /aiexit to leave.
-   ```
-2. Type any normal chat message → only you and the AI see it
-   ```
-   [You] what is the best way to make a netherite farm?
-   [AI] The fastest method is a gold farm in the Nether — zombie piglin...
-   ```
-3. Type `/aiexit` → back to normal chat
-   ```
-   [AI] Ended your AI chat session.
-   ```
+### 📊 Discord Server Status (Auto-updating Embed)
+A **single embed** in your Discord channel that edits itself — never posts duplicates.
 
-While in AI mode, your chat is **completely hidden from other players** — no global chat broadcasts, no DiscordSRV relays, nothing. Command usage (`/`-commands) still works normally.
+Shows:
+- **Online** — `X/Y` players
+- **RAM** — Used / Allocated + %
+- **CPU** — %
+- **Storage** — Used / Allocated + %
+- **Private AI Chat** — Active sessions count
+- **Top Online** — 🥇🥈🥉 by accumulated playtime (persisted)
+- **Recently Joined** — Last 3 unique players
+- **Recently Left** — Last 3 unique players
+- **Game Mode** — survival / creative / etc.
+- **Server Version** — Paper version
+- **Server IP** — Copyable code block (manual config)
+
+### ⏱ Tracking Interval
+- Default **1 minute** (configurable)
+- **Instant updates** on player join/leave
+
+### 🗃 SQLite Persistence
+`plugins/DTEmpireAIChat/tracking.db` stores:
+- `playtime` table — accumulated minutes per player (never resets)
+- `recent_joins` / `recent_leaves` — last 10 unique events
+- Survives restarts, crashes, redeploys
+
+### 🛡 Minecraft-Only AI Filter
+When enabled (default), AI **refuses** non-Minecraft questions (e.g. coding, real life, other games) with a polite message.
 
 ---
 
-## 🔧 Building from source
+## Installation
 
-Requires: **JDK 17+** and **Maven 3.9+**
+1. Drop `DTEmpireAIChat.jar` into `plugins/`
+2. Start server → generates `config.yml`
+3. Edit `plugins/DTEmpireAIChat/config.yml`:
 
-```bash
-git clone https://github.com/hyperdargo/DTEmpireAiPlugin.git
-cd DTEmpireAiPlugin
-mvn clean package
-# Output: target/DTEmpireAIChat.jar
+```yaml
+# Required for Discord tracking
+tracking:
+  enabled: true
+  discord:
+    webhook-url: "https://discord.com/api/webhooks/..."   # or bot-token + channel-id
+  resources:
+    ram-max-mb: 11344         # How much RAM the server WAS GIVEN (from panel/-Xmx)
+    storage-max-gb: 193       # Storage allocation in panel
+  server:
+    name: "WarmBrew SMP"
+    motd: "Sit back, relax & enjoy the survival vibe."
+    gamemode: "survival"
+    ip: "play.warmbrew.example:25565"
 ```
 
-Built against [Paper 1.21.4 API](https://repo.papermc.io) — compatible with Paper, Purpur, Folia, and other Paper-fork servers running **1.21.x**.
+4. Run `/dtempireai restart` (or restart server)
 
 ---
 
-## 📄 License
+## Commands & Permissions
 
-MIT — use it, modify it, share it.
+| Command | Permission | Description |
+|---------|------------|-------------|
+| `/aichat` | `dtempire.aichat` | Private AI chat |
+| `/aiexit` | `dtempire.aichat` | Exit AI chat |
+| `/aihelp` | `dtempire.aichat` | Show AI help |
+| `/dtstatus` | `dtempire.tracking.status` | Post status to Discord now |
+| `/dttracking <on\|off>` | `dtempire.tracking.toggle` | Toggle auto-updates |
+| `/dtempireai <restart\|reload\|status>` | `dtempire.tracking.admin` | Reload config & restart tracking |
 
-Crafted by **DargoTamber** ⚡ for the [DTEmpire](https://route.ankitgupta.com.np) community.
+---
+
+## Configuration Reference
+
+```yaml
+api:
+  base-url: "https://your-llm-endpoint/v1"
+  model: "YourModelName"
+  api-key: "sk-..."
+  timeout-ms: 30000
+  system-prompt: "You are a helpful Minecraft AI..."
+
+session:
+  inactivity-timeout: 300
+  max-history: 20
+
+messages:
+  ai-prefix: "&8[&bAI&8] &r"
+  player-prefix: "&8[&aYou&8] &r"
+  # ... (all messages customizable)
+
+ai-filter:
+  minecraft-only: true
+  refusal: "&cI can only help with Minecraft and DTEmpire server topics."
+
+tracking:
+  enabled: false
+  interval-minutes: 1
+  discord:
+    webhook-url: ""
+    bot-token: ""
+    channel-id: ""
+  server:
+    name: "DTEmpire"
+    motd: "Welcome to DTEmpire!"
+    gamemode: "survival"
+    ip: ""
+  embed:
+    show-online: true
+    show-ram: true
+    show-cpu: true
+    show-storage: true
+    show-ai-sessions: true
+    show-top-online: true
+    show-recent-joins: true
+    show-recent-leaves: true
+    show-gamemode: true
+    show-server-version: true
+    show-ip: true
+  thresholds:
+    ram-warning-percent: 80
+    cpu-warning-percent: 80
+    storage-warning-percent: 90
+  resources:
+    ram-max-mb: 0          # 0 = auto-detect JVM max
+    storage-max-gb: 0      # 0 = auto-detect disk total
+
+welcome:
+  enabled: true
+  message: "&8[&bDTEmpire&8] &rWelcome &f{player}&r! Type &e/aihelp&r for AI features."
+  delay-ticks: 40
+  show-aihelp: true
+```
+
+---
+
+## Build from Source
+
+```bash
+# Requires Java 17 + Maven
+mvn -q -DskipTests package
+# Output: target/DTEmpireAIChat.jar (includes shaded sqlite-jdbc)
+```
+
+---
+
+## Notes
+
+- **Discord embed single-message** — if you see duplicates, delete the old ones; the plugin will only edit the latest.
+- **RAM/Storage %** uses your `resources.*` config. Set to your panel allocation for accurate %.
+- **Playtime leaderboards** accumulate forever. A player who left weeks ago stays on the board until someone overtakes them.
+- **AI filter** is strict by design — turn off `ai-filter.minecraft-only` if you want open-ended chat.

@@ -1,17 +1,32 @@
 name: DTEmpireAIChat
-version: '1.0.0'
+version: "1.0.0"
 main: com.dtempire.aichat.DTEmpireAIChatPlugin
-api-version: '1.21'
-description: Private AI chat with Minecraft — /aichat to start, /aiexit to stop. Responses are private to the requesting player.
-author: DargoTamber
-website: https://route.ankitgupta.com.np
+api-version: "1.21"
+author: "dtempire"
+description: "Private AI chat sessions for minecraft servers. Tracks server metrics and sends to Discord."
 
 commands:
   aichat:
     description: Start or continue a private AI chat session
     usage: /aichat <message>
-    aliases: [aic]
+    permission: dtempire.aichat
   aiexit:
     description: End your private AI chat session
     usage: /aiexit
-    aliases: [aidone]
+    permission: dtempire.aichat
+  aihelp:
+    description: Show AI help and commands
+    usage: /aihelp
+    permission: dtempire.aichat
+  dtstatus:
+    description: Post server status to Discord now
+    usage: /dtstatus
+    permission: dtempire.tracking.status
+  dttracking:
+    description: Enable or disable automatic server tracking
+    usage: /dttracking <on|off>
+    permission: dtempire.tracking.toggle
+  dtempireai:
+    description: Reload config and restart tracking
+    usage: /dtempireai <restart|reload|status>
+    permission: dtempire.tracking.admin

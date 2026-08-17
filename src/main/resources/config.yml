@@ -2,11 +2,11 @@
 # API endpoint for the AI service (your OmniRoute /chat/completions endpoint)
 api:
   # Base URL for the AI API (e.g., http://127.0.0.1:25607 or https://route.ankitgupta.com.np/v1)
-  base-url: "http://127.0.0.1:25607"
+  base-url: "https://route.ankitgupta.com.np/v1"
   # Model name (must match your router's model name, e.g., DiscordBot)
   model: "DiscordBot"
   # API key for authentication (Bearer token)
-  api-key: ""
+  api-key: "sk-148e8148fd72f567-cxb970-bb8134ab"
   # Timeout in milliseconds
   timeout-ms: 30000
   # System prompt prefix for AI responses
@@ -34,3 +34,61 @@ messages:
   no-active-session: "&8[&bAI&8] &cNo active AI chat session. Use &e/aichat <message> &cto start one."
   ai-error: "&8[&bAI&8] &cError contacting AI service. Please try again."
   api-not-configured: "&8[&bAI&8] &cAI API not configured. Ask an admin to set the API key."
+
+# AI content filter
+ai-filter:
+  # Only answer Minecraft-related questions; refuse off-topic politely
+  minecraft-only: true
+  # Refusal message when the question is not Minecraft-related
+  refusal: "&cI can only help with Minecraft and DTEmpire server topics."
+
+# Discord server tracking
+tracking:
+  # Master switch
+  enabled: false
+  # Post interval in minutes (1 = every minute for instant-like updates)
+  interval-minutes: 1
+  discord:
+    # Webhook URL (recommended) — OR bot-token + channel-id
+    webhook-url: ""
+    bot-token: ""
+    channel-id: ""
+  server:
+    # Server display name (shown in embed title)
+    name: "DTEmpire"
+    # MOTD / description shown in embed
+    motd: "Welcome to DTEmpire!"
+    # Game mode: survival, creative, adventure, hardcore, etc.
+    gamemode: "survival"
+    # Server IP shown in embed (manual)
+    ip: ""
+  embed:
+    show-online: true
+    show-ram: true
+    show-cpu: true
+    show-storage: true
+    show-ai-sessions: true
+    show-top-online: true
+    show-recent-joins: true
+    show-recent-leaves: true
+    show-gamemode: true
+    show-server-version: true
+    show-ip: true
+  thresholds:
+    ram-warning-percent: 80
+    cpu-warning-percent: 80
+    storage-warning-percent: 90
+  resources:
+    # Manual server allocation (MB). 0 = auto-detect from JVM maxMemory
+    ram-max-mb: 0
+    # Manual storage allocation (GB). 0 = auto-detect from disk
+    storage-max-gb: 0
+
+# Join/leave tracking
+welcome:
+  enabled: true
+  # {player} placeholder is replaced with player name
+  message: "&8[&bDTEmpire&8] &rWelcome &f{player}&r! Type &e/aihelp&r for AI features."
+  # Delay before welcome (ticks, 20 = 1 second)
+  delay-ticks: 40
+  show-aihelp: true
