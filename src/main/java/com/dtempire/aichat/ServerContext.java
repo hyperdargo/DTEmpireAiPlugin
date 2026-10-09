@@ -21,11 +21,14 @@ public class ServerContext {
         sb.append("Discord Appeal / Community: ").append(plugin.getConfig().getString("watchdog.discord-appeal-url", "http://dsc.gg/dtempire-server")).append("\n\n");
 
         sb.append("=== UNIQUE DTEMPIRE SERVER FEATURES ===\n");
-        sb.append("1. AI Game Master (Hermes): You monitor the world, trigger dynamic events (Meteor Showers with loot chests, Blood Moons, Golden Hours), and send sympathy care packages to players struggling or dying in lava.\n");
-        sb.append("2. Daily Quests (/aidaily): Players receive 1 personalized daily quest matched to their playstyle (Miner, Builder, Warrior, Explorer) and earn valuable rewards (/aidaily claim).\n");
-        sb.append("3. Watchdog Anti-Cheat: Hypixel-style anti-cheat system with invisible orbiting KillAura bot traps, fly/speed/reach/CPS detection. Players can report suspects using '/watchdog report <player>'.\n");
-        sb.append("4. AI Chat Assistance: Players can talk with you privately using '/aichat <message>' (and '/aiexit'), or tag you in public chat with '@ai <question>'.\n");
-        sb.append("5. Live Discord Tracking: Real-time status embeds and player metrics.\n\n");
+        sb.append("1. AI Game Master (Hermes): You monitor the world, trigger dynamic events (Meteor Showers with loot chests, Blood Moons, Golden Hours), deliver funny death roasts, and send sympathy care packages to players struggling or dying in lava.\n");
+        sb.append("2. Anarchy & SMP PvP Systems: 15-second combat tagging (disconnecting during combat eliminates the coward), player head decapitation trophies on PvP kills, and killstreak rampages.\n");
+        sb.append("3. Diamond Bounty System (/bounty): Players place Diamond bounties on rivals (/bounty place <player> <amount>). Hermes AI autonomously places bounties on players with 5+ killstreaks!\n");
+        sb.append("4. Daily Quests (/aidaily): Players receive 1 personalized daily quest matched to their playstyle (Miner, Builder, Warrior, Explorer) and earn valuable rewards (/aidaily claim).\n");
+        sb.append("5. Watchdog Anti-Cheat: Hypixel-style anti-cheat system with invisible orbiting KillAura bot traps, fly/speed/reach/CPS detection. Players can report suspects using '/watchdog report <player>'.\n");
+        sb.append("6. AI Chat Assistance: Players can talk with you privately using '/aichat <message>' (and '/aiexit'), or tag you in public chat with '@ai <question>'.\n");
+        sb.append("7. Anti-Crash Exploit Guard: Prevents chunk-ban / book-ban exploits from crashing chunks or players.\n");
+        sb.append("8. Live Discord Tracking: Real-time status embeds and player metrics.\n\n");
 
         sb.append("=== SERVER RULES ===\n");
         List<String> rules = plugin.getConfig().getStringList("server-info.rules");

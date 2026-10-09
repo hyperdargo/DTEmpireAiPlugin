@@ -20,6 +20,7 @@ public class AIHelpCommand implements CommandExecutor {
         sender.sendMessage(plugin.color("&e/aichat <msg>&r - Talk privately with the server AI assistant"));
         sender.sendMessage(plugin.color("&e/aiexit&r - End your private AI chat session"));
         sender.sendMessage(plugin.color("&e/aidaily&r - View & claim tailored daily quests & rewards"));
+        sender.sendMessage(plugin.color("&e/bounty <place|list>&r - Place Diamond bounties on wanted outlaws"));
         sender.sendMessage(plugin.color("&e/watchdog report <player>&r - Report suspicious players to Watchdog"));
         if (sender.hasPermission("dtempire.admin") || sender.isOp()) {
             sender.sendMessage(plugin.color("&c/aiadmin &7- Game Master event controls & player gifts"));

@@ -1,11 +1,15 @@
 name: DTEmpireAIChat
-version: "1.1.1"
+version: "1.2.0"
 main: com.dtempire.aichat.DTEmpireAIChatPlugin
 api-version: "1.21"
 author: "dtempire"
-description: "Autonomous AI Game Master, Adaptive Player Profiler, Daily Quests & Hypixel Watchdog Anti-Cheat"
+description: "Autonomous AI Game Master, Watchdog Anti-Cheat, Combat Tagging & Anarchy Bounties"
 
 commands:
+  bounty:
+    description: Place or view Diamond bounties on wanted outlaws
+    usage: /bounty <place|list|check>
+    aliases: [bounties, wanted]
   aichat:
     description: Start or continue a private AI chat session
     usage: /aichat <message>

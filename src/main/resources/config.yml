@@ -49,6 +49,19 @@ gamemaster:
   # Enable random autonomous events
   events-enabled: true
 
+# Anarchy & SMP Systems
+anarchy:
+  # Combat tag duration in seconds (prevents PvP logout cowards)
+  combat-tag-seconds: 15
+  # Drop victim's decapitated player head on PvP kill
+  drop-player-heads: true
+  # Enable Diamond bounty system (/bounty) and autonomous AI bounties
+  enable-bounties: true
+  # Enable killstreak announcements and buffs (3, 5, 10 kills)
+  enable-killstreaks: true
+  # Enable comedic AI death roasts in chat on hilarious deaths
+  enable-ai-death-roasts: true
+
 # Sympathy Care Packages
 care-packages:
   # Enable care packages for struggling players (died 3x quickly or in lava)

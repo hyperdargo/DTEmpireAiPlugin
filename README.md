@@ -41,6 +41,25 @@ Hermes acts as an autonomous server director, scheduling and triggering world ev
 - **Golden Hour:** Blesses active players with Haste and Regeneration buffs for 15 minutes.
 - **Admin Control:** Staff can trigger events, send gifts, check player telemetry, or inspect stats anytime via `/aiadmin`.
 
+### ⚔️ Anarchy & SMP Survival Systems
+- **Combat Tagging & Anti-Combat-Log:**
+  - Engaging in PvP triggers a 15-second combat tag with real-time actionbar countdown (`⚔ In Combat: 14s | Do not disconnect!`).
+  - Blocks teleport/escape commands (`/spawn`, `/tpa`, `/home`, etc.) during combat.
+  - If a player disconnects while combat-tagged, they are **instantly eliminated** and drop all items. The attacker gets the kill credit, head trophy, and any active bounty!
+- **Decapitated Player Head Trophies:**
+  - Slain players drop their custom player skull item with victim texture and engraved lore (killer name, date, and conquest inscription).
+- **Diamond Bounty System (`/bounty`):**
+  - Players can fund bounties using in-game Diamonds (`/bounty place <player> <amount>`).
+  - View top wanted criminals anytime with `/bounty list`.
+  - Killing a wanted player automatically deposits the Diamond bounty directly into the killer's inventory!
+- **Autonomous AI Bounties & Killstreaks:**
+  - Players on 3, 5, and 10 killstreaks trigger global server announcements and speed/resistance buffs.
+  - When a player reaches a 5-kill rampage, **Hermes AI autonomously places a 5-Diamond bounty on their head**, turning them into a high-value wilderness target!
+- **Hermes AI Death Roasts:**
+  - Accidental or humiliating deaths (lava baths, falling, suffocation in walls, drowning, baby zombies) trigger hilarious 1-line roasts from Hermes in chat.
+- **Anti-Crash Exploit Guard:**
+  - Blocks oversized Unicode books and illegal NBT data to prevent book-ban and chunk-ban server crashes.
+
 ### 🧠 Adaptive Telemetry & Sympathy Care Packages
 - Real-time logging of blocks mined, rare ores, placements, mob kills, PvP kills, deaths, and distance.
 - Categorizes players into archetypes:
@@ -81,8 +100,9 @@ Hermes acts as an autonomous server director, scheduling and triggering world ev
 | `/aiexit` | `dtempire.aichat` | End private AI chat session |
 | `/aihelp` | `dtempire.aichat` | Show AI commands and help guide |
 | `/aidaily [claim]` | `dtempire.daily` | View or claim your tailored daily quest and bounty |
+| `/bounty <place|list|check>` | *(Everyone)* | Place or view Diamond bounties on wanted outlaws |
 | `/watchdog report <player>` | `dtempire.watchdog.report` | Report suspicious players to Watchdog |
-| `/watchdog <test|inspect|ban|stats>` | `dtempire.watchdog.staff` | Anti-cheat inspection, aura bot tests & bans *(Staff)* |
+| `/watchdog <test|inspect|ban|unban|stats>` | `dtempire.watchdog.staff` | Anti-cheat inspection, aura bot tests & bans *(Staff)* |
 | `/aiadmin <event|gift|broadcast|stats>` | `dtempire.admin` | Game Master event director & gift manager *(Staff)* |
 | `/dtempireai <update|reload|status>` | `dtempire.tracking.admin` | Check/download plugin updates, reload config *(Admin)* |
 | `/dtstatus` | `dtempire.tracking.status` | Post Discord status embed immediately *(Admin)* |

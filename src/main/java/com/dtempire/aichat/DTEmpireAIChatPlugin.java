@@ -1,5 +1,10 @@
 package com.dtempire.aichat;
 
+import com.dtempire.aichat.anarchy.AnarchyPvPListener;
+import com.dtempire.aichat.anarchy.BountyCommand;
+import com.dtempire.aichat.anarchy.BountyManager;
+import com.dtempire.aichat.anarchy.CombatTagManager;
+import com.dtempire.aichat.anarchy.ExploitListener;
 import com.dtempire.aichat.daily.DailyTaskCommand;
 import com.dtempire.aichat.daily.DailyTaskManager;
 import com.dtempire.aichat.gamemaster.AIAdminCommand;
@@ -35,6 +40,10 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
     // Public Chat & Auto-Updater
     private PublicChatAIHandler publicChatAIHandler;
     private PluginUpdater pluginUpdater;
+
+    // Anarchy & SMP Systems
+    private CombatTagManager combatTagManager;
+    private BountyManager bountyManager;
 
     @Override
     public void onEnable() {
@@ -77,7 +86,14 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
             startTracking();
         }
 
-        // 6. Plugin Auto-Updater
+        // 6. Anarchy & SMP Systems (Combat Tagging, Bounties, Exploit Guard)
+        combatTagManager = new CombatTagManager(this);
+        bountyManager = new BountyManager(this, manager.getStore());
+        getCommand("bounty").setExecutor(new BountyCommand(this, bountyManager));
+        getServer().getPluginManager().registerEvents(new AnarchyPvPListener(this, combatTagManager, bountyManager), this);
+        getServer().getPluginManager().registerEvents(new ExploitListener(this), this);
+
+        // 7. Plugin Auto-Updater
         pluginUpdater = new PluginUpdater(this);
         pluginUpdater.startScheduledCheck();
 
@@ -93,6 +109,7 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
         getLogger().info(green + bold + "║" + cyan + "  • Personalized Daily Tasks & Bounties          " + green + bold + "║" + reset);
         getLogger().info(green + bold + "║" + cyan + "  • Server Events & Admin Orchestrator           " + green + bold + "║" + reset);
         getLogger().info(green + bold + "║" + cyan + "  • Watchdog Anti-Cheat with Discord Appeals     " + green + bold + "║" + reset);
+        getLogger().info(green + bold + "║" + cyan + "  • Combat Tagging, Player Heads & Roasts        " + green + bold + "║" + reset);
         getLogger().info(green + bold + "║" + cyan + "  • GitHub Auto-Updater (plugins/update/)        " + green + bold + "║" + reset);
         getLogger().info(green + bold + "╚════════════════════════════════════════════════╝" + reset);
         getLogger().info("Server tracking " + (isTrackingEnabled() ? "ENABLED" : "disabled"));
@@ -104,6 +121,7 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
         if (gameMaster != null) gameMaster.stopEventScheduler();
         if (telemetryManager != null) telemetryManager.shutdown();
         if (watchdogManager != null) watchdogManager.cleanup();
+        if (combatTagManager != null) combatTagManager.shutdown();
         if (manager != null) manager.shutdown();
         getLogger().info("DTEmpireAIChat disabled.");
     }
@@ -219,5 +237,13 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
 
     public String color(String text) {
         return org.bukkit.ChatColor.translateAlternateColorCodes('&', text);
+    }
+
+    public CombatTagManager getCombatTagManager() {
+        return combatTagManager;
+    }
+
+    public BountyManager getBountyManager() {
+        return bountyManager;
     }
 }

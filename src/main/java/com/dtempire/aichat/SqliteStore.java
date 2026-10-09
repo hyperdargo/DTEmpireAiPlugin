@@ -80,6 +80,14 @@ public class SqliteStore {
                     "reason TEXT NOT NULL, " +
                     "ban_id TEXT NOT NULL, " +
                     "ts INTEGER NOT NULL)");
+
+            // Anarchy / SMP Bounty System
+            st.execute("CREATE TABLE IF NOT EXISTS bounties (" +
+                    "uuid TEXT PRIMARY KEY, " +
+                    "player_name TEXT NOT NULL, " +
+                    "diamonds INTEGER NOT NULL DEFAULT 0, " +
+                    "placed_by TEXT NOT NULL, " +
+                    "last_updated INTEGER NOT NULL)");
         }
     }
 
@@ -425,6 +433,86 @@ public class SqliteStore {
             try (ResultSet rs = ps.executeQuery()) {
                 while (rs.next()) {
                     out.add(rs.getString("player_name") + " (" + rs.getString("reason") + " - " + rs.getString("ban_id") + ")");
+                }
+            }
+        } catch (SQLException ignored) {
+        }
+        return out;
+    }
+
+    public static class BountyRecord {
+        public final UUID uuid;
+        public final String playerName;
+        public final int diamonds;
+        public final String placedBy;
+        public final long lastUpdated;
+
+        public BountyRecord(UUID uuid, String playerName, int diamonds, String placedBy, long lastUpdated) {
+            this.uuid = uuid;
+            this.playerName = playerName;
+            this.diamonds = diamonds;
+            this.placedBy = placedBy;
+            this.lastUpdated = lastUpdated;
+        }
+    }
+
+    public synchronized int addOrIncreaseBounty(UUID uuid, String playerName, int diamonds, String placedBy) {
+        if (diamonds <= 0) return 0;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO bounties(uuid, player_name, diamonds, placed_by, last_updated) VALUES(?,?,?,?,?) " +
+                "ON CONFLICT(uuid) DO UPDATE SET diamonds = diamonds + excluded.diamonds, " +
+                "player_name = excluded.player_name, placed_by = excluded.placed_by, last_updated = excluded.last_updated")) {
+            ps.setString(1, uuid.toString());
+            ps.setString(2, playerName);
+            ps.setInt(3, diamonds);
+            ps.setString(4, placedBy);
+            ps.setLong(5, System.currentTimeMillis());
+            ps.executeUpdate();
+        } catch (SQLException ignored) {
+        }
+        BountyRecord rec = getBounty(uuid);
+        return rec != null ? rec.diamonds : diamonds;
+    }
+
+    public synchronized BountyRecord getBounty(UUID uuid) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT player_name, diamonds, placed_by, last_updated FROM bounties WHERE uuid = ?")) {
+            ps.setString(1, uuid.toString());
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return new BountyRecord(uuid, rs.getString("player_name"), rs.getInt("diamonds"),
+                            rs.getString("placed_by"), rs.getLong("last_updated"));
+                }
+            }
+        } catch (SQLException ignored) {
+        }
+        return null;
+    }
+
+    public synchronized int removeBounty(UUID uuid) {
+        BountyRecord rec = getBounty(uuid);
+        if (rec == null) return 0;
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM bounties WHERE uuid = ?")) {
+            ps.setString(1, uuid.toString());
+            ps.executeUpdate();
+        } catch (SQLException ignored) {
+        }
+        return rec.diamonds;
+    }
+
+    public synchronized List<BountyRecord> getTopBounties(int limit) {
+        List<BountyRecord> out = new ArrayList<>();
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT uuid, player_name, diamonds, placed_by, last_updated FROM bounties ORDER BY diamonds DESC LIMIT ?")) {
+            ps.setInt(1, limit);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    try {
+                        UUID id = UUID.fromString(rs.getString("uuid"));
+                        out.add(new BountyRecord(id, rs.getString("player_name"), rs.getInt("diamonds"),
+                                rs.getString("placed_by"), rs.getLong("last_updated")));
+                    } catch (IllegalArgumentException ignored) {
+                    }
                 }
             }
         } catch (SQLException ignored) {
