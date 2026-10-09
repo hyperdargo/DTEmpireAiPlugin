@@ -72,10 +72,16 @@ care-packages:
 # Hypixel-style Watchdog Anti-Cheat
 watchdog:
   enabled: true
-  # Auto-ban is enabled for definitive KILLAURA_BOT decoy hits and blatant X-Ray miners.
-  # Movement checks (Speed/Fly/Jesus) will rubberband/setback and alert staff, NEVER false-permaban.
-  autoban-movement: false
+  # Auto-ban is enabled for definitive KILLAURA_BOT decoy hits, FLY hacks, and blatant X-Ray miners.
+  autoban-movement: true
   max-ban-vl: 100
+
+  # Dedicated Fly Autoban (bans players flying in survival mode or hovering/ascending)
+  autoban-fly: true
+  max-fly-ban-vl: 8
+  # Whether survival players are permitted to use /fly without being banned
+  allow-survival-flight: false
+
   # Auto-ban players flagged for blatant X-Ray (reaching max-xray-ban-vl)
   autoban-xray: true
   max-xray-ban-vl: 15

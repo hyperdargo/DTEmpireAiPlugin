@@ -259,20 +259,28 @@ public class WatchdogManager {
         plugin.getLogger().warning("[Watchdog] " + player.getName() + " flagged " + check + " (VL: " + current + ", details: " + details + ")");
 
         // Auto-ban policy:
-        // 1. KILLAURA_BOT (striking the invisible orbiting trap bot) -> 100% definitive cheat client -> Instant ban!
-        // 2. Movement checks (SPEED, FLY, JESUS) -> NEVER auto-ban! (Prevents false bans from cave jumping / lag)
+        // 1. KILLAURA_BOT -> instant ban
+        // 2. FLY -> bans when reaching max-fly-ban-vl (8 VL)
+        // 3. XRAY -> bans when reaching max-xray-ban-vl (15 VL)
+        // 4. Other movement flags (SPEED, JESUS) -> bans when reaching max-ban-vl (100 VL)
         boolean isAuraBot = "KILLAURA_BOT".equalsIgnoreCase(check);
-        boolean allowMovementAutoban = plugin.getConfig().getBoolean("watchdog.autoban-movement", false);
+        boolean allowMovementAutoban = plugin.getConfig().getBoolean("watchdog.autoban-movement", true);
         int maxMovementVL = plugin.getConfig().getInt("watchdog.max-ban-vl", 100);
+
+        boolean allowFlyAutoban = plugin.getConfig().getBoolean("watchdog.autoban-fly", true);
+        int maxFlyVL = plugin.getConfig().getInt("watchdog.max-fly-ban-vl", 8);
+
         boolean allowXrayAutoban = plugin.getConfig().getBoolean("watchdog.autoban-xray", true);
         int maxXrayVL = plugin.getConfig().getInt("watchdog.max-xray-ban-vl", 15);
 
         if (isAuraBot) {
             punishBan(player, "KILLAURA_BOT");
-        } else if (allowMovementAutoban && total >= maxMovementVL) {
-            punishBan(player, check);
+        } else if (allowFlyAutoban && check.startsWith("FLY") && current >= maxFlyVL) {
+            punishBan(player, "FLYING");
         } else if (allowXrayAutoban && "XRAY".equalsIgnoreCase(check) && total >= maxXrayVL) {
             punishBan(player, "XRAY");
+        } else if (allowMovementAutoban && total >= maxMovementVL) {
+            punishBan(player, check);
         }
     }
 

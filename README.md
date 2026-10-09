@@ -26,11 +26,11 @@ Keep your server clean and fair with automated heuristic detection and honeypot 
   - **Reach Check:** Detects combat hits exceeding 3.9 blocks in survival mode.
   - **Angle Check:** Flags impossible attack angles outside natural field-of-view (> 95°).
   - **AutoClicker / CPS:** Rolling click history detecting CPS exceeding 20 clicks/sec.
-  - **Flight / Glide Check:** Detects prolonged mid-air hovering (> 40 ticks without descent).
+  - **Flight / Glide & Ascend Check:** Detects illegal survival flight (`/fly`, abilities packets), airborne ascension without ground contact, and prolonged hovering (> 20 ticks without descent). Auto-bans blatant survival fliers at 8 VL.
   - **Speed / Bhop Check:** Flags unnatural horizontal velocity (> 0.72 blocks/tick).
   - **Jesus / Water Walk:** Detects walking across liquid surfaces without submerging.
   - **Anti-Xray Statistical Detection:** Tracks diamond/ancient debris discovery speed, vein clustering, and ore-to-stone mining ratios. Flags unnatural mining velocity (4+ veins in under 3 mins, > 20% ore ratio) and alerts staff with exact coordinates.
-- **Unified Discord Ban Card & Appeal Integration (`discord-bot/`):**
+- **Unified Discord Ban Card & Automated Appeal Lifecycle (`discord-bot/`):**
   - Sends a **single unified ban card** directly through the Discord bot, featuring player skin renders, Ban ID (`#WD-XXXXXXXX`), detection reason, and an attached **`[📩 Submit Ban Appeal]`** button.
   - No two-way duplicate messages: Discord Webhooks and Bot are integrated so players see one clean card.
   - Modern Discord Slash Commands:
@@ -40,9 +40,11 @@ Keep your server clean and fair with automated heuristic detection and honeypot 
     - `/appealstatus` - Checks channel configurations and bot permission health.
   - Players click `[📩 Submit Ban Appeal]` to open a native popup form pre-filled with their IGN and Ban ID.
   - Submissions are delivered to staff with **`[🟢 Accept Appeal]`** and **`[🔴 Deny Appeal]`** buttons.
-  - **`[Accept Appeal]`** notifies the player via DM and displays the console command (`watchdog unban <IGN>`).
-  - **`[Deny Appeal]`** prompts staff for a denial reason and DMs the player with the explanation.
-  - Local HTTP Ban Bridge (`http://127.0.0.1:25608/ban`) connects the Paper server and Discord bot instantly.
+  - **`[🟢 Accept Appeal]`** automatically pardons the player in Minecraft without opening console and sends a rich DM confirmation to the applicant.
+  - **`[🔴 Deny Appeal]`** prompts staff for a denial reason via modal and sends a rich DM to the applicant explaining the decision.
+  - Bi-directional Local Bridge (`http://127.0.0.1:25608`):
+    - `POST /ban`: Sends ban notifications from Minecraft to Discord.
+    - `GET /unbans` & `POST /unbans/ack`: Polled every 5 seconds by Paper to auto-unban approved applicants without console commands.
 
 ### 👑 Autonomous AI Game Master (`/aiadmin`)
 Hermes acts as an autonomous server director, scheduling and triggering world events:

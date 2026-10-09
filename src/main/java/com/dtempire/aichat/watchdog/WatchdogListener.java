@@ -96,10 +96,28 @@ public class WatchdogListener implements Listener {
         if (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE) {
             return;
         }
-        if (player.isFlying() || player.getAllowFlight() || player.isGliding() || player.isInsideVehicle() || player.isRiptiding() || player.isClimbing()) {
+
+        // Gliding with Elytra, vehicle, riptide, or climbing are legitimate vanilla aerial/vertical actions
+        if (player.isGliding() || player.isInsideVehicle() || player.isRiptiding() || player.isClimbing()) {
             watchdogManager.setAirTicks(player, 0);
             return;
         }
+
+        // Flight ability check:
+        // In survival mode, flight is disallowed unless explicitly enabled by server config
+        boolean allowSurvivalFly = plugin.getConfig().getBoolean("watchdog.allow-survival-flight", false);
+        if (player.isFlying() || player.getAllowFlight()) {
+            if (!allowSurvivalFly && player.getGameMode() == GameMode.SURVIVAL) {
+                // Illegal flight enabled in survival (/fly, abilities packet, or cheat client flight mode)
+                watchdogManager.flag(player, "FLY", 2, "Survival flight enabled (isFlying=" + player.isFlying() + ", allowFlight=" + player.getAllowFlight() + ")");
+                event.setTo(event.getFrom());
+                return;
+            } else {
+                watchdogManager.setAirTicks(player, 0);
+                return;
+            }
+        }
+
         if (player.hasPotionEffect(PotionEffectType.LEVITATION) || player.hasPotionEffect(PotionEffectType.SLOW_FALLING)) {
             watchdogManager.setAirTicks(player, 0);
             return;
@@ -135,17 +153,28 @@ public class WatchdogListener implements Listener {
             int air = watchdogManager.getAirTicks(player) + 1;
             watchdogManager.setAirTicks(player, air);
 
-            // Fly check: must be suspended in open air for over 80 ticks (4 seconds) without falling
-            if (!hasLowCeiling && air > 80 && dy >= -0.05 && player.getFallDistance() == 0.0f) {
-                watchdogManager.flag(player, "FLY", 1, "Suspended in air for " + air + " ticks (dy: " + String.format("%.3f", dy) + ")");
-                // Rubberband setback to prevent illegitimate flying
-                Location safeLoc = watchdogManager.getLastGroundLocation(player);
-                if (safeLoc != null) {
-                    event.setTo(safeLoc);
-                } else {
+            // Bouncy blocks check (slime, honey, bed)
+            Material groundMat = from.clone().subtract(0, 0.5, 0).getBlock().getType();
+            boolean isBouncy = groundMat == Material.SLIME_BLOCK || groundMat == Material.HONEY_BLOCK || groundMat.name().endsWith("_BED");
+            boolean inSlowBlock = to.getBlock().getType() == Material.COBWEB || to.getBlock().getType() == Material.POWDER_SNOW;
+
+            if (!hasLowCeiling && !isBouncy && !inSlowBlock) {
+                // Check 1: Ascending into the air without ground (air > 12 and dy > 0.08)
+                // In vanilla, peak of jump is ~tick 11. Ascending after tick 12 is impossible without cheats.
+                if (air > 12 && dy > 0.08) {
+                    watchdogManager.flag(player, "FLY", 2, "Ascending in air without ground (air=" + air + ", dy=" + String.format("%.3f", dy) + ")");
                     event.setTo(from);
+                    return;
                 }
-                return;
+
+                // Check 2: Hovering or gliding horizontally through air without falling
+                // In vanilla, after 20 air ticks, gravity forces dy downwards (-0.2 to -0.6 blocks/tick).
+                if (air > 20 && dy >= -0.05 && player.getFallDistance() == 0.0f) {
+                    watchdogManager.flag(player, "FLY", 1, "Suspended in air without falling (air=" + air + ", dy=" + String.format("%.3f", dy) + ")");
+                    Location safeLoc = watchdogManager.getLastGroundLocation(player);
+                    event.setTo(safeLoc != null ? safeLoc : from);
+                    return;
+                }
             }
         }
 
