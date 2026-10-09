@@ -16,6 +16,8 @@ import com.dtempire.aichat.updater.PluginUpdater;
 import com.dtempire.aichat.watchdog.WatchdogCommand;
 import com.dtempire.aichat.watchdog.WatchdogListener;
 import com.dtempire.aichat.watchdog.WatchdogManager;
+import com.dtempire.aichat.watchdog.WatchdogWebServer;
+import com.dtempire.aichat.watchdog.XrayTracker;
 import org.bukkit.plugin.java.JavaPlugin;
 
 import java.util.List;
@@ -36,6 +38,7 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
 
     // Hypixel Watchdog Anti-Cheat
     private WatchdogManager watchdogManager;
+    private WatchdogWebServer watchdogWebServer;
 
     // Public Chat & Auto-Updater
     private PublicChatAIHandler publicChatAIHandler;
@@ -75,10 +78,14 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
         gameMaster = new AIGameMaster(this);
         getCommand("aiadmin").setExecutor(new AIAdminCommand(this, gameMaster));
 
-        // 4. Watchdog Anti-Cheat
+        // 4. Watchdog Anti-Cheat & Anti-Xray & Appeals API
         watchdogManager = new WatchdogManager(this, manager.getStore());
         getServer().getPluginManager().registerEvents(new WatchdogListener(this, watchdogManager), this);
+        getServer().getPluginManager().registerEvents(new XrayTracker(this, watchdogManager), this);
         getCommand("watchdog").setExecutor(new WatchdogCommand(this, watchdogManager));
+
+        watchdogWebServer = new WatchdogWebServer(this, watchdogManager);
+        watchdogWebServer.start();
 
         // 5. Discord Tracking & Welcomer
         trackingListener = new TrackingListener(this);
@@ -119,6 +126,7 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
     @Override
     public void onDisable() {
         stopTracking();
+        if (watchdogWebServer != null) watchdogWebServer.stop();
         if (gameMaster != null) gameMaster.stopEventScheduler();
         if (telemetryManager != null) telemetryManager.shutdown();
         if (watchdogManager != null) watchdogManager.cleanup();

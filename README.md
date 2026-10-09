@@ -29,10 +29,13 @@ Keep your server clean and fair with automated heuristic detection and honeypot 
   - **Flight / Glide Check:** Detects prolonged mid-air hovering (> 40 ticks without descent).
   - **Speed / Bhop Check:** Flags unnatural horizontal velocity (> 0.72 blocks/tick).
   - **Jesus / Water Walk:** Detects walking across liquid surfaces without submerging.
-- **Server-Wide Ban Announcements & Discord Appeals:**
-  - Broadcasts authentic Hypixel-style ban wave announcements.
-  - Generates unique `#WD-XXXXXXXX` ban IDs stored in SQLite.
-  - Displays ban ID, reason, and a direct Discord appeal link on both kick and login screens.
+  - **Anti-Xray Statistical Detection:** Tracks diamond/ancient debris discovery speed, vein clustering, and ore-to-stone mining ratios. Flags unnatural mining velocity (4+ veins in under 3 mins, > 20% ore ratio) and alerts staff with exact coordinates.
+- **Server-Wide Ban Announcements & Discord Webhook Cards:**
+  - Automatically posts rich ban cards to your configured Discord bans channel via Webhook, displaying the player's avatar, Ban ID (`#WD-XXXXXXXX`), detection reason, and appeal instructions.
+- **Discord Ban Appeal System & Bot (`discord-bot/`):**
+  - Players click `[📩 Submit Ban Appeal]` in Discord to open a native popup form (IGN, Ban ID, What happened, Why unban).
+  - Submissions are sent to `#staff-appeals` with **`[🟢 Approve & Unban]`** and **`[🔴 Reject Appeal]`** buttons.
+  - Clicking `[Approve & Unban]` instantly executes the unban on the Paper server via embedded API (`POST /api/unban`), broadcasts the pardon in Minecraft, and sends a DM to the player!
 
 ### 👑 Autonomous AI Game Master (`/aiadmin`)
 Hermes acts as an autonomous server director, scheduling and triggering world events:

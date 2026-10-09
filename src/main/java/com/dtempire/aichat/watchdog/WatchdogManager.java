@@ -2,17 +2,25 @@ package com.dtempire.aichat.watchdog;
 
 import com.dtempire.aichat.DTEmpireAIChatPlugin;
 import com.dtempire.aichat.SqliteStore;
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
 import org.bukkit.scheduler.BukkitTask;
 
+import java.net.URI;
+import java.net.http.HttpClient;
+import java.net.http.HttpRequest;
+import java.net.http.HttpResponse;
+import java.time.Duration;
 import java.util.ArrayDeque;
 import java.util.Deque;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -215,6 +223,87 @@ public class WatchdogManager {
         );
 
         player.kickPlayer(kickMsg);
+
+        // Send Discord Ban Log Embed via Webhook asynchronously
+        sendDiscordBanLog(player, reason, banId);
+    }
+
+    private void sendDiscordBanLog(Player player, String reason, String banId) {
+        String webhookUrl = plugin.getConfig().getString("watchdog.discord.bans-webhook-url", "");
+        if (webhookUrl == null || webhookUrl.trim().isEmpty()) return;
+
+        CompletableFuture.runAsync(() -> {
+            try {
+                String avatarUrl = "https://mc-heads.net/avatar/" + player.getName() + "/128";
+                String appealUrl = plugin.getConfig().getString("watchdog.discord-appeal-url", "http://dsc.gg/dtempire-server");
+
+                JsonObject payload = new JsonObject();
+                payload.addProperty("username", "Watchdog Security");
+                payload.addProperty("avatar_url", "https://mc-heads.net/avatar/Watchdog/128");
+
+                JsonArray embeds = new JsonArray();
+                JsonObject embed = new JsonObject();
+                embed.addProperty("title", "🛡️ WATCHDOG BAN ENFORCED");
+                embed.addProperty("color", 15158332); // Red #E74C3C
+                embed.addProperty("description", "A player has been permanently banned by Watchdog Anti-Cheat.");
+
+                JsonObject thumbnail = new JsonObject();
+                thumbnail.addProperty("url", avatarUrl);
+                embed.add("thumbnail", thumbnail);
+
+                JsonArray fields = new JsonArray();
+
+                JsonObject f1 = new JsonObject();
+                f1.addProperty("name", "👤 Player");
+                f1.addProperty("value", "`" + player.getName() + "`");
+                f1.addProperty("inline", true);
+                fields.add(f1);
+
+                JsonObject f2 = new JsonObject();
+                f2.addProperty("name", "🆔 Ban ID");
+                f2.addProperty("value", "`" + banId + "`");
+                f2.addProperty("inline", true);
+                fields.add(f2);
+
+                JsonObject f3 = new JsonObject();
+                f3.addProperty("name", "⚖️ Reason");
+                f3.addProperty("value", "**" + reason + "**");
+                f3.addProperty("inline", true);
+                fields.add(f3);
+
+                JsonObject f4 = new JsonObject();
+                f4.addProperty("name", "📋 Status");
+                f4.addProperty("value", "🔴 Permanent Ban");
+                f4.addProperty("inline", true);
+                fields.add(f4);
+
+                JsonObject f5 = new JsonObject();
+                f5.addProperty("name", "📩 How to Appeal");
+                f5.addProperty("value", "Join [" + appealUrl + "](" + appealUrl + ") and submit an appeal with your Ban ID in the appeals channel.");
+                f5.addProperty("inline", false);
+                fields.add(f5);
+
+                embed.add("fields", fields);
+
+                JsonObject footer = new JsonObject();
+                footer.addProperty("text", "DTEmpire Watchdog Security Network • Player Ban Record");
+                embed.add("footer", footer);
+
+                embeds.add(embed);
+                payload.add("embeds", embeds);
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(webhookUrl.trim()))
+                        .header("Content-Type", "application/json")
+                        .POST(HttpRequest.BodyPublishers.ofString(payload.toString()))
+                        .timeout(Duration.ofSeconds(10))
+                        .build();
+
+                HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.discarding());
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Watchdog] Failed to post ban embed to Discord webhook: " + e.getMessage());
+            }
+        });
     }
 
     /** Helper to check if a player is staff or OP. */
