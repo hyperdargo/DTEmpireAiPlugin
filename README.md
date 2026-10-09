@@ -75,8 +75,17 @@ Hermes acts as an autonomous server director, scheduling and triggering world ev
 - Command `/aidaily` shows a visual progress bar: `[■■■■■■□□□□] (6/10)`.
 - Completing tasks awards bounties (diamonds, building materials, combat elixirs) via `/aidaily claim` with celebratory fireworks.
 
-### 💬 Chat AI: Public Observer & Private Chat
-- **Public Chat Observer:** Hermes watches public chat. If a player asks a question or tags `@ai <question>`, Hermes answers concisely in chat (< 200 chars). For casual banter, "gg", and jokes, Hermes stays silent.
+### 💬 Global Chat AI Helper & Private Chat
+- **Global Chat AI Assistant (`hey aichat`, `message ai`, `/ai`):**
+  - Players can ask Hermes to explain, translate, or answer questions directly in global chat!
+  - **Natural Chat Triggers:** Type naturally in chat:
+    - `hey aichat tell him how to make a nether portal`
+    - `hey ai tell @Steve diamonds spawn at Y -58`
+    - `message ai send msg in global chat how to craft anvil`
+    - `hey ai translate to english: ma 5 min ma aauxu`
+    - `ai how to breed villagers` or `@ai what is the server ip`
+  - **Player-to-Player Translation & Assistance:** Perfect for players who want to help another player but don't want to type long explanations or aren't fluent in English — Hermes explains clearly, addresses the target player, and keeps answers under 2 lines of chat!
+  - **Commands:** `/ai <message>`, `/messageai <message>`, or `/aichat global <message>`.
 - **Private Chat Session:** Players can initiate a private 1-on-1 AI chat with `/aichat <message>` without other players seeing it. Use `/aiexit` to finish.
 - **Server-Aware Lore:** Hermes knows server rules, features, commands, and Discord links, ensuring accurate answers rather than generic vanilla facts.
 
@@ -95,7 +104,8 @@ Hermes acts as an autonomous server director, scheduling and triggering world ev
 
 | Command | Permission | Description |
 |---|---|---|
-| `@ai <question>` | *(Public chat)* | Ask Hermes directly in public server chat |
+| `/ai <question>` | `dtempire.aichat` | Ask AI to answer/explain/translate in global chat *(Aliases: /messageai, /heyai)* |
+| `@ai <question>` | *(Public chat)* | Ask Hermes directly in public server chat *(or type: hey aichat, message ai)* |
 | `/aichat <message>` | `dtempire.aichat` | Start or continue a private AI chat |
 | `/aiexit` | `dtempire.aichat` | End private AI chat session |
 | `/aihelp` | `dtempire.aichat` | Show AI commands and help guide |

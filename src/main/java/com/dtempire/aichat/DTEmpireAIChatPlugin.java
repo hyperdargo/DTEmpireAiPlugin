@@ -58,6 +58,7 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
         getCommand("aichat").setExecutor(new AIChatCommand(this, manager));
         getCommand("aiexit").setExecutor(new AIExitCommand(this, manager));
         getCommand("aihelp").setExecutor(new AIHelpCommand(this));
+        getCommand("ai").setExecutor(new AIGlobalChatCommand(this, publicChatAIHandler));
         getCommand("dtempireai").setExecutor(new TrackingCommand(this));
         getServer().getPluginManager().registerEvents(new ChatListener(this, manager, publicChatAIHandler), this);
 

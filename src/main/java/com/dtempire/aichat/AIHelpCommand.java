@@ -16,7 +16,8 @@ public class AIHelpCommand implements CommandExecutor {
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
         sender.sendMessage(plugin.color("&8&m────────────────────────────────────────"));
         sender.sendMessage(plugin.color("&8[&bHermes AI Game Master&8] &r&lCommands"));
-        sender.sendMessage(plugin.color("&e@ai <question>&r - Ask Hermes directly in public server chat"));
+        sender.sendMessage(plugin.color("&e/ai <question>&r - Ask Hermes to answer/explain in public global chat"));
+        sender.sendMessage(plugin.color("&7  (Or in chat: &ehey aichat <msg>&7, &emessage ai <msg>&7, &ehey ai tell him...&7)"));
         sender.sendMessage(plugin.color("&e/aichat <msg>&r - Talk privately with the server AI assistant"));
         sender.sendMessage(plugin.color("&e/aiexit&r - End your private AI chat session"));
         sender.sendMessage(plugin.color("&e/aidaily&r - View & claim tailored daily quests & rewards"));

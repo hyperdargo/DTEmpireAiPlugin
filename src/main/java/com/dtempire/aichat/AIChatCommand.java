@@ -24,6 +24,16 @@ public class AIChatCommand implements CommandExecutor {
 
         String joined = String.join(" ", args).trim();
 
+        // Check for /aichat global <msg> or /aichat say <msg>
+        if (args.length > 1 && (args[0].equalsIgnoreCase("global") || args[0].equalsIgnoreCase("say") ||
+                args[0].equalsIgnoreCase("tell") || args[0].equalsIgnoreCase("public"))) {
+            String globalMsg = joined.substring(args[0].length()).trim();
+            if (!globalMsg.isEmpty()) {
+                plugin.getPublicChatAIHandler().processExplicitCommand(player, globalMsg);
+                return true;
+            }
+        }
+
         if (!manager.hasSession(player)) {
             // start a fresh session
             manager.startSession(player, null);

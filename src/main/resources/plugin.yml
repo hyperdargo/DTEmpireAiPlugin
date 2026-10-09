@@ -1,11 +1,16 @@
 name: DTEmpireAIChat
-version: "1.2.0"
+version: "1.2.1"
 main: com.dtempire.aichat.DTEmpireAIChatPlugin
 api-version: "1.21"
 author: "dtempire"
-description: "Autonomous AI Game Master, Watchdog Anti-Cheat, Combat Tagging & Anarchy Bounties"
+description: "Autonomous AI Game Master, Watchdog Anti-Cheat, Global AI Assistant & Anarchy Bounties"
 
 commands:
+  ai:
+    description: Ask Hermes AI to explain, answer, or translate directly in global chat
+    usage: /ai <question or message>
+    aliases: [messageai, msgai, askai, heyai]
+    permission: dtempire.aichat
   bounty:
     description: Place or view Diamond bounties on wanted outlaws
     usage: /bounty <place|list|check>

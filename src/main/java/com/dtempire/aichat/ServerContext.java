@@ -54,13 +54,29 @@ public class ServerContext {
     }
 
     public static String getPublicChatEvaluationPrompt(DTEmpireAIChatPlugin plugin, String senderName, String message) {
-        return getFullServerPrompt(plugin) + "\n" +
-                "=== PUBLIC CHAT MONITORING TASK ===\n" +
-                "You are observing the server's public chat.\n" +
-                "Player \"" + senderName + "\" said: \"" + message + "\"\n\n" +
-                "DECISION RULE:\n" +
-                "- If this message is directly addressing you (@ai, ai, hermes, bot), OR asking a genuine question about the server, rules, commands, daily quests, watchdog, or Minecraft gameplay help -> provide a concise, friendly, helpful 1-2 sentence reply (under 200 characters) for Minecraft chat.\n" +
-                "- If this message is just players chatting with each other (casual banter, 'lol', 'gg', 'hi', pvp taunts, trade offers, greetings, roleplay, random chatter) where an AI response is NOT needed -> reply with EXACTLY ONE WORD: \"IGNORE\".\n" +
-                "Output ONLY the chat reply or IGNORE. Do not include quotes or extra commentary.";
+        return getPublicChatEvaluationPrompt(plugin, senderName, message, false);
+    }
+
+    public static String getPublicChatEvaluationPrompt(DTEmpireAIChatPlugin plugin, String senderName, String message, boolean isExplicit) {
+        StringBuilder sb = new StringBuilder(getFullServerPrompt(plugin));
+        sb.append("\n=== GLOBAL CHAT AI ASSISTANT TASK ===\n");
+        sb.append("You are the live Minecraft server assistant responding directly in PUBLIC GLOBAL CHAT.\n");
+        sb.append("Player \"").append(senderName).append("\" sent this prompt: \"").append(message).append("\"\n\n");
+
+        if (isExplicit) {
+            sb.append("SPECIAL INSTRUCTION: The player explicitly asked YOU ('hey ai', 'hey aichat', 'message ai', etc.) to formulate a response in global chat!\n");
+            sb.append("- They may be asking for themselves, OR asking you to explain/answer another player ('tell him...', 'tell @player...', 'explain to them...', 'answer them...') because they don't want to type a long explanation or don't know English well.\n");
+            sb.append("- Formulate a clear, helpful, friendly answer in English that directly answers the inquiry.\n");
+            sb.append("- If they specify or mention another player (e.g. 'tell Alex', 'tell @p2', 'answer him'), address that player (e.g. '@Alex, ...') so the target player knows it's for them.\n");
+            sb.append("- If they write in broken English, Nepali, or Hindi asking how to say something or to tell someone something, translate or formulate it cleanly into friendly English.\n");
+            sb.append("- Keep your response under 220 characters so it fits neatly in 1-2 lines of Minecraft chat.\n");
+            sb.append("- DO NOT reply IGNORE. Output ONLY the in-game message text to broadcast in global chat. Do not include quotes, markdown bold blocks, or commentary.");
+        } else {
+            sb.append("DECISION RULE:\n");
+            sb.append("- If this message is asking a genuine question about the server, rules, commands, daily quests, watchdog, or Minecraft gameplay help -> provide a concise, friendly, helpful 1-2 sentence reply (under 200 characters) for Minecraft chat.\n");
+            sb.append("- If this message is just players chatting with each other (casual banter, 'lol', 'gg', 'hi', pvp taunts, trade offers, greetings, roleplay, random chatter) where an AI response is NOT needed -> reply with EXACTLY ONE WORD: \"IGNORE\".\n");
+            sb.append("Output ONLY the chat reply or IGNORE. Do not include quotes or extra commentary.");
+        }
+        return sb.toString();
     }
 }
