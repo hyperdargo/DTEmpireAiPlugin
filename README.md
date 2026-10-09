@@ -30,14 +30,19 @@ Keep your server clean and fair with automated heuristic detection and honeypot 
   - **Speed / Bhop Check:** Flags unnatural horizontal velocity (> 0.72 blocks/tick).
   - **Jesus / Water Walk:** Detects walking across liquid surfaces without submerging.
   - **Anti-Xray Statistical Detection:** Tracks diamond/ancient debris discovery speed, vein clustering, and ore-to-stone mining ratios. Flags unnatural mining velocity (4+ veins in under 3 mins, > 20% ore ratio) and alerts staff with exact coordinates.
-- **Server-Wide Ban Announcements & Discord Webhook Cards:**
-  - Automatically posts rich ban cards to your configured Discord bans channel via Webhook, displaying the player's avatar, Ban ID (`#WD-XXXXXXXX`), detection reason, and appeal instructions.
-- **Discord Ban Appeal System & Bot (`discord-bot/`):**
-  - Players click `[📩 Submit Ban Appeal]` in Discord to open a native popup form (IGN, Ban ID, What happened, Why unban).
-  - Submissions are sent to your configured staff review channel with **`[🟢 Accept Appeal]`** and **`[🔴 Deny Appeal]`** buttons.
-  - Clicking **`[Accept Appeal]`** sends an automated DM to the player notifying them they were unbanned, and displays the console command for staff (`watchdog unban <IGN>`).
-  - Clicking **`[Deny Appeal]`** opens a modal for staff to enter a denial reason, updates the case, and sends an automated DM to the player with the reason.
-  - Fully standalone: no localhost ports or open network listeners needed on your Minecraft host!
+- **Unified Discord Ban Card & Appeal Integration (`discord-bot/`):**
+  - Sends a **single unified ban card** directly through the Discord bot, featuring player skin renders, Ban ID (`#WD-XXXXXXXX`), detection reason, and an attached **`[📩 Submit Ban Appeal]`** button.
+  - No two-way duplicate messages: Discord Webhooks and Bot are integrated so players see one clean card.
+  - Modern Discord Slash Commands:
+    - `/setbanchannel #channel` - Sets the public ban announcements channel.
+    - `/setappeallog #channel` or `/banapeal #channel` - Sets the staff appeals review channel.
+    - `/postappealpanel` - Posts a permanent appeal station panel in any channel.
+    - `/appealstatus` - Checks channel configurations and bot permission health.
+  - Players click `[📩 Submit Ban Appeal]` to open a native popup form pre-filled with their IGN and Ban ID.
+  - Submissions are delivered to staff with **`[🟢 Accept Appeal]`** and **`[🔴 Deny Appeal]`** buttons.
+  - **`[Accept Appeal]`** notifies the player via DM and displays the console command (`watchdog unban <IGN>`).
+  - **`[Deny Appeal]`** prompts staff for a denial reason and DMs the player with the explanation.
+  - Local HTTP Ban Bridge (`http://127.0.0.1:25608/ban`) connects the Paper server and Discord bot instantly.
 
 ### 👑 Autonomous AI Game Master (`/aiadmin`)
 Hermes acts as an autonomous server director, scheduling and triggering world events:
@@ -158,6 +163,23 @@ tracking:
 ```
 
 5. Run `/dtempireai reload` in-game or restart your server.
+
+---
+
+## 🌐 Multi-Loader & Platform Support
+`DTEmpireAIChat` is built as a native server-side plugin for **Paper 1.21.4+** (and modern Spigot/Purpur forks).
+
+### Running on Modded Servers (Fabric / Forge / NeoForge)
+If your server runs modpacks on Fabric, Forge, or NeoForge, you can run `DTEmpireAIChat` server-side today via standard Bukkit compatibility loaders:
+- **NeoForge / Forge 1.20 - 1.21+:** Run via [Mohist](https://mohistmc.com), [Arclight](https://github.com/IzzelAliz/Arclight), or [Ketting](https://kettingpowered.org). Drop `DTEmpireAIChat.jar` directly into the `plugins/` directory.
+- **Fabric 1.21+:** Run via [Cardboard](https://modrinth.com/mod/cardboard) or [Banner](https://github.com/Cryptite/Banner). Allows Paper/Spigot plugins to load seamlessly alongside Fabric server mods.
+
+### Native Multi-Loader Mod Roadmap
+Because `DTEmpireAIChat` utilizes Paper's Bukkit EventBus (`BlockBreakEvent`, `AsyncChatEvent`), SQLite storage, and Kyori Adventure text, a native mod port (without hybrid loaders) requires porting to [Architectury API](https://architectury.dev) with separate subprojects for:
+- `common`: Core AI logic, telemetry models, SQLite store, and Watchdog heuristics.
+- `fabric`: Fabric Loom build with Fabric lifecycle and mixin hooks.
+- `neoforge`: NeoForge ModDev build with NeoForge event bus.
+- `forge`: Legacy MinecraftForge build.
 
 ---
 

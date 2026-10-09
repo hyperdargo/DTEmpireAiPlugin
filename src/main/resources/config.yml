@@ -96,7 +96,9 @@ watchdog:
 
   # Discord Ban Logging
   discord:
-    # Webhook URL to automatically post ban embeds when Watchdog bans a player
+    # Direct local Discord Bot bridge (Posts unified card with [Submit Ban Appeal] button)
+    bot-api-url: "http://127.0.0.1:25608/ban"
+    # Webhook URL fallback if bot bridge is not active
     bans-webhook-url: ""
 
 # GitHub Auto-Updater (checks releases and downloads into plugins/update/)

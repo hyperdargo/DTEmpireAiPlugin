@@ -1,14 +1,20 @@
 #!/usr/bin/env python3
 """
-DTEmpire Watchdog Discord Appeal Bot
+DTEmpire Watchdog Discord Appeal Bot & Ban Broadcaster
 Features:
-  - Interactive [Submit Ban Appeal] button panel (persistent across restarts)
-  - Ban Appeal Modal form asking: Minecraft IGN, Ban ID, what happened, why unban
-  - Staff Review Channel (configured via !setappeallog #channel)
-  - Staff buttons:
-      [🟢 Accept Appeal]: Marks approved, sends DM to player, gives staff console command: /watchdog unban <IGN>
-      [🔴 Deny Appeal]: Opens modal asking staff for denial reason, marks denied, sends DM to player with reason
-  - Standalone manual console unban: No localhost server or open ports needed!
+  - Unified Single Ban Card: Ban record is posted directly by the bot with the [Submit Ban Appeal] button attached!
+  - No two-way text duplication: Webhook posts are intercepted/replaced or sent via local bridge.
+  - Local HTTP Ban Bridge (http://127.0.0.1:25608/ban) connecting Minecraft Watchdog to Discord instantly.
+  - Slash Commands & Prefix Commands:
+      /setbanchannel #channel (or !setbanchannel) - Sets the public ban logs channel.
+      /setappeallog #channel  (or !setappeallog)  - Sets the private staff appeals channel.
+      /banapeal #channel      (or !banapeal)      - Alias to configure the staff review channel.
+      /postappealpanel        (or !postappealpanel)- Posts the permanent appeal station embed.
+      /appealstatus           (or !appealstatus)  - Shows current channels and permission health.
+  - Interactive Ban Appeal Modal pre-filled with player's IGN and Ban ID.
+  - Staff Review Flow:
+      [🟢 Accept Appeal]: Marks approved, sends DM to player, reminds staff of console command: watchdog unban <IGN>
+      [🔴 Deny Appeal]: Opens modal for denial reason, marks denied, sends DM to player with reason.
 """
 
 import os
@@ -17,15 +23,24 @@ import json
 import logging
 from pathlib import Path
 import re
-import discord
-from discord.ext import commands
+import asyncio
+from typing import Optional
 
-logging.basicConfig(level=logging.INFO, format="[%(asctime)s] %(levelname)s: %(message)s")
-logger = logging.getLogger("DTEmpireAppealBot")
+import discord
+from discord import app_commands
+from discord.ext import commands
+from aiohttp import web
+
+logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(name)s/%(levelname)s]: %(message)s")
+logger = logging.getLogger("WatchdogAppealBot")
 
 CONFIG_FILE = Path(__file__).parent / "appeal_config.json"
+LOCAL_API_PORT = 25608
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# CONFIG PERSISTENCE
+# ─────────────────────────────────────────────────────────────────────────────
 def load_config() -> dict:
     try:
         if CONFIG_FILE.exists():
@@ -52,13 +67,46 @@ def extract_field_value(embed: discord.Embed, field_name: str) -> str:
     return ""
 
 
+def check_channel_perms(bot_member: discord.Member, channel: discord.TextChannel) -> list[str]:
+    perms = channel.permissions_for(bot_member)
+    missing = []
+    if not perms.view_channel:
+        missing.append("View Channel")
+    if not perms.send_messages:
+        missing.append("Send Messages")
+    if not perms.embed_links:
+        missing.append("Embed Links")
+    return missing
+
+
+def create_ban_embed(ign: str, ban_id: str, reason: str, status: str = "Permanent Ban", appeal_url: str = "http://dsc.gg/dtempire-server") -> discord.Embed:
+    embed = discord.Embed(
+        title="🛡️ WATCHDOG BAN ENFORCED",
+        description="A player has been permanently banned by Watchdog Anti-Cheat.",
+        color=0xE74C3C,  # Red
+        timestamp=discord.utils.utcnow()
+    )
+    embed.set_thumbnail(url=f"https://mc-heads.net/avatar/{ign}/128")
+    embed.add_field(name="👤 Player", value=f"`{ign}`", inline=True)
+    embed.add_field(name="🆔 Ban ID", value=f"`{ban_id}`", inline=True)
+    embed.add_field(name="⚖️ Reason", value=f"**{reason}**", inline=True)
+    embed.add_field(name="📋 Status", value=f"🔴 **{status}**", inline=True)
+    embed.add_field(
+        name="📩 How to Appeal",
+        value=f"Click the **Submit Ban Appeal** button below, or join [{appeal_url}]({appeal_url}) with your Ban ID.",
+        inline=False
+    )
+    embed.set_footer(text="DTEmpire Watchdog Security Network • Player Ban Record")
+    return embed
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # MODAL: Staff Denial Reason Modal
 # ─────────────────────────────────────────────────────────────────────────────
 class StaffDenyReasonModal(discord.ui.Modal, title="Deny Ban Appeal"):
     reason_input = discord.ui.TextInput(
         label="Reason for Denial",
-        placeholder="Explain why this appeal is denied (e.g. Cheating admitted, insufficient evidence)...",
+        placeholder="Explain why this appeal is denied (e.g. Cheating confirmed, insufficient evidence)...",
         style=discord.TextStyle.paragraph,
         min_length=5,
         max_length=500,
@@ -100,63 +148,62 @@ class StaffDenyReasonModal(discord.ui.Modal, title="Deny Ban Appeal"):
 
             await interaction.message.edit(embed=embed, view=view)
 
-        # Send DM to player
+        # DM notification to player
         try:
-            bot = interaction.client
-            user = await bot.fetch_user(self.target_user_id)
-            if user:
+            target_user = await interaction.client.fetch_user(self.target_user_id)
+            if target_user:
                 dm_embed = discord.Embed(
-                    title="❌ DTEmpire Ban Appeal Denied",
+                    title="⚖️ DTEmpire Ban Appeal Decision: DENIED",
                     description=(
-                        f"Hello {user.name},\n\n"
-                        f"Your ban appeal for Minecraft account **`{self.ign}`** has been reviewed and **DENIED** by DTEmpire Staff.\n\n"
-                        f"**Reason:**\n> {self.reason_input.value}\n\n"
-                        f"Your ban remains in effect on the server."
+                        f"Hello {target_user.mention},\n\n"
+                        f"Your ban appeal for Minecraft account **`{self.ign}`** has been reviewed by staff and was **DENIED**.\n\n"
+                        f"**Reason:** {self.reason_input.value}\n\n"
+                        f"If you have further questions, you may contact senior administration."
                     ),
                     color=0xE74C3C
                 )
-                dm_embed.set_footer(text="DTEmpire Watchdog Security Network")
-                await user.send(embed=dm_embed)
+                dm_embed.set_footer(text="DTEmpire Server Management")
+                await target_user.send(embed=dm_embed)
         except Exception as e:
-            logger.warning(f"Could not send denial DM to user {self.target_user_id}: {e}")
+            logger.warning(f"Could not send DM to {self.target_user_id}: {e}")
 
-        await interaction.followup.send(f"❌ Appeal for **`{self.ign}`** was marked as DENIED and player was notified via DM.", ephemeral=True)
+        await interaction.followup.send(
+            f"❌ Appeal for **`{self.ign}`** has been **DENIED**. Reason logged and player notified via DM.",
+            ephemeral=True
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# VIEW: Staff Review View (Persistent)
+# VIEW: Staff Review Action Buttons (Persistent)
 # ─────────────────────────────────────────────────────────────────────────────
 class StaffAppealReviewView(discord.ui.View):
     def __init__(self):
         super().__init__(timeout=None)
 
-    @discord.ui.button(label="Accept Appeal", style=discord.ButtonStyle.success, emoji="🟢", custom_id="dtempire_staff_accept_btn")
+    @discord.ui.button(label="Accept Appeal", style=discord.ButtonStyle.success, emoji="🟢", custom_id="dtempire_staff_btn_accept")
     async def accept_appeal(self, interaction: discord.Interaction, button: discord.ui.Button):
-        perms = interaction.user.guild_permissions if isinstance(interaction.user, discord.Member) else None
-        if not perms or (not perms.kick_members and not perms.administrator and not perms.manage_guild):
-            await interaction.response.send_message("❌ Only server staff and moderators can review appeals.", ephemeral=True)
-            return
+        await interaction.response.defer()
 
         if not interaction.message or not interaction.message.embeds:
-            await interaction.response.send_message("❌ Could not read appeal embed.", ephemeral=True)
+            await interaction.followup.send("❌ Error reading appeal embed.", ephemeral=True)
             return
 
         embed = interaction.message.embeds[0]
-        raw_ign = extract_field_value(embed, "IGN")
-        ign = re.sub(r"[`*_\s]", "", raw_ign) or "Unknown"
+        ign = extract_field_value(embed, "Minecraft IGN")
+        ign = re.sub(r"[`*_\s]", "", ign) or "Player"
+        user_mention = extract_field_value(embed, "Discord User")
 
-        raw_user = extract_field_value(embed, "Discord User")
-        user_match = re.search(r"(\d{17,20})", raw_user)
-        target_user_id = int(user_match.group(1)) if user_match else None
-
-        await interaction.response.defer()
+        target_user_id = 0
+        match = re.search(r"\((\d{17,20})\)", user_mention)
+        if match:
+            target_user_id = int(match.group(1))
 
         # Update Embed
         embed.color = 0x2ECC71  # Green
         new_fields = []
         for f in embed.fields:
             if f.name and "status" in f.name.lower():
-                new_fields.append((f.name, f"✅ **ACCEPTED** by {interaction.user.mention}", False))
+                new_fields.append((f.name, f"✅ **APPROVED** by {interaction.user.mention}", False))
             else:
                 new_fields.append((f.name, f.value, f.inline))
 
@@ -164,77 +211,67 @@ class StaffAppealReviewView(discord.ui.View):
         for name, val, inline in new_fields:
             embed.add_field(name=name, value=val, inline=inline)
 
-        embed.add_field(
-            name="💻 Console Action Required",
-            value=f"Run in Minecraft console to unban:\n`/watchdog unban {ign}` or `pardon {ign}`",
-            inline=False
-        )
-
         # Disable buttons
         view = discord.ui.View()
-        btn_accept = discord.ui.Button(label="Accepted", style=discord.ButtonStyle.success, emoji="🟢", disabled=True)
+        btn_accept = discord.ui.Button(label="Approved", style=discord.ButtonStyle.success, emoji="✅", disabled=True)
         btn_deny = discord.ui.Button(label="Deny Appeal", style=discord.ButtonStyle.danger, emoji="🔴", disabled=True)
         view.add_item(btn_accept)
         view.add_item(btn_deny)
 
         await interaction.message.edit(embed=embed, view=view)
 
-        # Send DM to player
+        # DM notification to player
         if target_user_id:
             try:
-                bot = interaction.client
-                user = await bot.fetch_user(target_user_id)
-                if user:
+                target_user = await interaction.client.fetch_user(target_user_id)
+                if target_user:
                     dm_embed = discord.Embed(
-                        title="🎉 DTEmpire Ban Appeal Accepted!",
+                        title="🎉 DTEmpire Ban Appeal Decision: APPROVED",
                         description=(
-                            f"Great news {user.name}!\n\n"
-                            f"Your ban appeal for Minecraft account **`{ign}`** has been **ACCEPTED** by DTEmpire Staff.\n\n"
-                            f"Your account is being unbanned on the server. You may rejoin shortly.\n\n"
-                            f"**Server IP:** `play.dtempire.com`\n"
-                            f"**Discord:** http://dsc.gg/dtempire-server\n\n"
+                            f"Congratulations {target_user.mention}!\n\n"
+                            f"Your ban appeal for Minecraft account **`{ign}`** has been **APPROVED** by DTEmpire staff.\n\n"
+                            f"Your account is being unbanned. Please ensure you comply with all server rules going forward.\n"
                             f"Welcome back to DTEmpire!"
                         ),
                         color=0x2ECC71
                     )
-                    dm_embed.set_footer(text="DTEmpire Watchdog Security Network")
-                    await user.send(embed=dm_embed)
+                    dm_embed.set_footer(text="DTEmpire Server Management")
+                    await target_user.send(embed=dm_embed)
             except Exception as e:
-                logger.warning(f"Could not send approval DM to user {target_user_id}: {e}")
+                logger.warning(f"Could not send approval DM to {target_user_id}: {e}")
 
         await interaction.followup.send(
-            f"✅ Appeal for **`{ign}`** approved! Player has been notified via DM.\n"
-            f"⚠️ **Run in Minecraft console:** `watchdog unban {ign}`",
+            f"✅ Appeal for **`{ign}`** has been **APPROVED**!\n"
+            f"Player has been notified via DM.\n\n"
+            f"⚠️ **Console Reminder:** To unban in-game, execute:\n"
+            f"```\nwatchdog unban {ign}\n```",
             ephemeral=True
         )
 
-    @discord.ui.button(label="Deny Appeal", style=discord.ButtonStyle.danger, emoji="🔴", custom_id="dtempire_staff_deny_btn")
+    @discord.ui.button(label="Deny Appeal", style=discord.ButtonStyle.danger, emoji="🔴", custom_id="dtempire_staff_btn_deny")
     async def deny_appeal(self, interaction: discord.Interaction, button: discord.ui.Button):
-        perms = interaction.user.guild_permissions if isinstance(interaction.user, discord.Member) else None
-        if not perms or (not perms.kick_members and not perms.administrator and not perms.manage_guild):
-            await interaction.response.send_message("❌ Only server staff and moderators can review appeals.", ephemeral=True)
-            return
-
         if not interaction.message or not interaction.message.embeds:
-            await interaction.response.send_message("❌ Could not read appeal embed.", ephemeral=True)
+            await interaction.response.send_message("❌ Error reading appeal embed.", ephemeral=True)
             return
 
         embed = interaction.message.embeds[0]
-        raw_ign = extract_field_value(embed, "IGN")
-        ign = re.sub(r"[`*_\s]", "", raw_ign) or "Unknown"
+        ign = extract_field_value(embed, "Minecraft IGN")
+        ign = re.sub(r"[`*_\s]", "", ign) or "Player"
+        user_mention = extract_field_value(embed, "Discord User")
 
-        raw_user = extract_field_value(embed, "Discord User")
-        user_match = re.search(r"(\d{17,20})", raw_user)
-        target_user_id = int(user_match.group(1)) if user_match else 0
+        target_user_id = 0
+        match = re.search(r"\((\d{17,20})\)", user_mention)
+        if match:
+            target_user_id = int(match.group(1))
 
         modal = StaffDenyReasonModal(target_user_id=target_user_id, ign=ign)
         await interaction.response.send_modal(modal)
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# MODAL: Player Appeal Submission Modal
+# MODAL: Player Ban Appeal Form
 # ─────────────────────────────────────────────────────────────────────────────
-class PlayerBanAppealModal(discord.ui.Modal, title="🛡️ DTEmpire Ban Appeal Form"):
+class PlayerBanAppealModal(discord.ui.Modal, title="DTEmpire Ban Appeal"):
     def __init__(self, default_ign: str = "", default_ban_id: str = ""):
         super().__init__()
         self.ign = discord.ui.TextInput(
@@ -246,26 +283,30 @@ class PlayerBanAppealModal(discord.ui.Modal, title="🛡️ DTEmpire Ban Appeal 
             required=True
         )
         self.ban_id = discord.ui.TextInput(
-            label="Ban ID (Shown on Kick/Ban Screen)",
-            placeholder="e.g. #WD-94820194",
+            label="Ban ID (found on ban screen)",
+            placeholder="e.g. #WD-99245006",
             default=default_ban_id,
+            min_length=3,
             max_length=32,
             required=False
         )
         self.activity = discord.ui.TextInput(
             label="What were you doing when banned?",
+            placeholder="Describe your actions (mining diamonds, fighting, lagging, etc.)...",
             style=discord.TextStyle.paragraph,
-            placeholder="Mining in cave, sprint-jumping, fighting mobs, high ping lag...",
-            max_length=1000,
+            min_length=10,
+            max_length=600,
             required=True
         )
         self.appeal_reason = discord.ui.TextInput(
-            label="Why should you be unbanned?",
+            label="Why should this ban be lifted?",
+            placeholder="Explain why this was a false detection or mistake...",
             style=discord.TextStyle.paragraph,
-            placeholder="Explain why this detection was a mistake or why you deserve a second chance...",
-            max_length=1000,
+            min_length=10,
+            max_length=600,
             required=True
         )
+
         self.add_item(self.ign)
         self.add_item(self.ban_id)
         self.add_item(self.activity)
@@ -284,15 +325,14 @@ class PlayerBanAppealModal(discord.ui.Modal, title="🛡️ DTEmpire Ban Appeal 
         log_channel = guild.get_channel(log_channel_id) if log_channel_id else None
         if not log_channel:
             await interaction.response.send_message(
-                "⚠️ Staff appeals review channel is not configured yet. Please ask an administrator to run `!setappeallog #channel`.",
+                "⚠️ Staff appeals review channel is not configured yet. Please ask an administrator to run `/setappeallog #channel`.",
                 ephemeral=True
             )
             return
 
-        # Check bot permissions in staff channel before telling user success
         if not isinstance(log_channel, discord.TextChannel):
             await interaction.response.send_message(
-                "❌ Configured staff channel is not a standard text channel.",
+                "❌ Configured staff appeals channel is not a standard text channel.",
                 ephemeral=True
             )
             return
@@ -308,7 +348,7 @@ class PlayerBanAppealModal(discord.ui.Modal, title="🛡️ DTEmpire Ban Appeal 
             )
             return
 
-        # Post Embed in Staff Review Channel
+        # Prepare Embed
         embed = discord.Embed(
             title=f"⚖️ Ban Appeal Submission: {self.ign.value}",
             color=0xF1C40F,  # Amber yellow
@@ -340,7 +380,7 @@ class PlayerBanAppealModal(discord.ui.Modal, title="🛡️ DTEmpire Ban Appeal 
             )
             return
 
-        # Reply to user with success confirmation only after embed posted
+        # Success confirmation to user
         await interaction.response.send_message(
             f"✅ **Thank you, {interaction.user.mention}!**\n"
             f"Your appeal for Minecraft account **`{self.ign.value}`** has been submitted to DTEmpire staff.\n"
@@ -350,7 +390,7 @@ class PlayerBanAppealModal(discord.ui.Modal, title="🛡️ DTEmpire Ban Appeal 
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# VIEW: Public Launch Button (Persistent)
+# VIEW: Public Launch Button on Standalone Panel
 # ─────────────────────────────────────────────────────────────────────────────
 class PublicAppealLaunchView(discord.ui.View):
     def __init__(self):
@@ -361,17 +401,20 @@ class PublicAppealLaunchView(discord.ui.View):
         await interaction.response.send_modal(PlayerBanAppealModal())
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# VIEW: Appeal Button Attached Directly to a Ban Card
+# ─────────────────────────────────────────────────────────────────────────────
 class SpecificBanAppealView(discord.ui.View):
     def __init__(self, ign: str = "", ban_id: str = ""):
         super().__init__(timeout=None)
         self.ign = ign
         self.ban_id = ban_id
 
-    @discord.ui.button(label="Submit Ban Appeal", style=discord.ButtonStyle.primary, emoji="📩", custom_id="dtempire_specific_ban_btn")
-    async def click_appeal(self, interaction: discord.Interaction, button: discord.ui.Button):
+    @discord.ui.button(label="Submit Ban Appeal", style=discord.ButtonStyle.danger, emoji="📩", custom_id="dtempire_btn_specific_ban_appeal")
+    async def appeal_specific(self, interaction: discord.Interaction, button: discord.ui.Button):
         ign = self.ign
         ban_id = self.ban_id
-        if not ign and interaction.message:
+        if (not ign or not ban_id) and interaction.message and interaction.message.embeds:
             for emb in interaction.message.embeds:
                 if not ign:
                     raw_player = extract_field_value(emb, "Player")
@@ -379,97 +422,105 @@ class SpecificBanAppealView(discord.ui.View):
                 if not ban_id:
                     raw_ban_id = extract_field_value(emb, "Ban ID")
                     ban_id = re.sub(r"[`*_\s]", "", raw_ban_id)
-        if not ign and interaction.message:
-            m = re.search(r"Record: `([^`]+)` \((#[^)]+)\)", interaction.message.content or "")
-            if m:
-                ign = m.group(1)
-                ban_id = m.group(2)
         await interaction.response.send_modal(PlayerBanAppealModal(default_ign=ign, default_ban_id=ban_id))
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# BOT INITIALIZATION
+# SHARED COMMAND HANDLERS (Used by Slash and Prefix Commands)
 # ─────────────────────────────────────────────────────────────────────────────
-intents = discord.Intents.default()
-intents.message_content = True
-bot = commands.Bot(command_prefix=["!", ">"], intents=intents)
-
-
-@bot.event
-async def on_ready():
-    bot_id = bot.user.id if bot.user else 0
-    logger.info(f"Bot connected as {bot.user} (ID: {bot_id})")
-    bot.add_view(PublicAppealLaunchView())
-    bot.add_view(StaffAppealReviewView())
-    bot.add_view(SpecificBanAppealView())
-    logger.info("Registered persistent Ban Appeal UI views")
-
-
-@bot.event
-async def on_message(message: discord.Message):
-    await bot.process_commands(message)
-
-    # Automatically attach an appeal button under Watchdog Ban webhook cards!
-    if message.webhook_id and message.embeds:
-        for embed in message.embeds:
-            if embed.title and "WATCHDOG BAN ENFORCED" in embed.title:
-                raw_player = extract_field_value(embed, "Player")
-                ign = re.sub(r"[`*_\s]", "", raw_player) or "Player"
-                raw_ban_id = extract_field_value(embed, "Ban ID")
-                ban_id = re.sub(r"[`*_\s]", "", raw_ban_id) or "N/A"
-
-                reply_view = SpecificBanAppealView(ign=ign, ban_id=ban_id)
-                await message.reply(
-                    f"⚖️ **Ban Record: `{ign}` ({ban_id})**\n"
-                    f"If you believe this ban was a false detection, click below to submit your appeal:",
-                    view=reply_view
-                )
-
-
-@bot.command(name="setappeallog", aliases=["setappeals", "appeallog"])
-@commands.has_permissions(administrator=True)
-async def set_appeal_log(ctx: commands.Context, channel: discord.TextChannel):
-    """Set the private channel where staff review submitted appeals."""
-    if not ctx.guild:
+async def handle_set_ban_channel(ctx_or_interaction, channel: discord.TextChannel, is_slash: bool):
+    guild = ctx_or_interaction.guild
+    if not guild:
+        msg = "❌ This command must be executed within a server."
+        if is_slash:
+            await ctx_or_interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
         return
 
-    # Check bot permissions in target channel
-    bot_member = ctx.guild.me
-    perms = channel.permissions_for(bot_member)
-    missing = []
-    if not perms.view_channel:
-        missing.append("View Channel")
-    if not perms.send_messages:
-        missing.append("Send Messages")
-    if not perms.embed_links:
-        missing.append("Embed Links")
-
+    bot_member = guild.me
+    missing = check_channel_perms(bot_member, channel)
     if missing:
-        await ctx.send(
-            f"❌ **Cannot set {channel.mention} as staff appeals channel!**\n"
-            f"The bot is missing the following permissions in that channel: **{', '.join(missing)}**.\n\n"
+        msg = (
+            f"❌ **Cannot set {channel.mention} as ban announcement channel!**\n"
+            f"The bot is missing required permissions: **{', '.join(missing)}**.\n\n"
             f"🔧 **How to fix:**\n"
-            f"1. In Discord, right-click/tap `{channel.name}` → **Edit Channel** → **Permissions**\n"
-            f"2. Add role `{bot.user.name if bot.user else 'Bot'}` (or the bot's role)\n"
+            f"1. In Discord, right-click `{channel.name}` → **Edit Channel** → **Permissions**\n"
+            f"2. Add role `{bot_member.name}`\n"
             f"3. Turn ON ✅ **View Channel**, ✅ **Send Messages**, and ✅ **Embed Links**\n"
-            f"4. Run `!setappeallog {channel.mention}` again."
+            f"4. Run `/setbanchannel {channel.mention}` again."
         )
+        if is_slash:
+            await ctx_or_interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
         return
 
     cfg = load_config()
-    gid = str(ctx.guild.id)
+    gid = str(guild.id)
+    if gid not in cfg:
+        cfg[gid] = {}
+    cfg[gid]["ban_channel_id"] = channel.id
+    save_config(cfg)
+
+    msg = (
+        f"✅ **Public Ban Announcement Channel Set!**\n"
+        f"👉 Channel: {channel.mention}\n"
+        f"Whenever Watchdog bans a player, a single unified ban card with an interactive **[Submit Ban Appeal]** button will be posted directly here."
+    )
+    if is_slash:
+        await ctx_or_interaction.response.send_message(msg, ephemeral=False)
+    else:
+        await ctx_or_interaction.send(msg)
+
+
+async def handle_set_appeal_log(ctx_or_interaction, channel: discord.TextChannel, is_slash: bool):
+    guild = ctx_or_interaction.guild
+    if not guild:
+        msg = "❌ This command must be executed within a server."
+        if is_slash:
+            await ctx_or_interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    bot_member = guild.me
+    missing = check_channel_perms(bot_member, channel)
+    if missing:
+        msg = (
+            f"❌ **Cannot set {channel.mention} as staff appeals review channel!**\n"
+            f"The bot is missing required permissions in that channel: **{', '.join(missing)}**.\n\n"
+            f"🔧 **How to fix:**\n"
+            f"1. In Discord, right-click `{channel.name}` → **Edit Channel** → **Permissions**\n"
+            f"2. Add role `{bot_member.name}`\n"
+            f"3. Turn ON ✅ **View Channel**, ✅ **Send Messages**, and ✅ **Embed Links**\n"
+            f"4. Run `/setappeallog {channel.mention}` again."
+        )
+        if is_slash:
+            await ctx_or_interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    cfg = load_config()
+    gid = str(guild.id)
     if gid not in cfg:
         cfg[gid] = {}
     cfg[gid]["log_channel_id"] = channel.id
     save_config(cfg)
 
-    await ctx.send(f"✅ Staff ban appeals review channel successfully set to {channel.mention}!\nPermissions verified (View Channel, Send Messages, Embed Links).")
+    msg = (
+        f"✅ **Staff Ban Appeals Review Channel Set!**\n"
+        f"👉 Channel: {channel.mention}\n"
+        f"When players submit appeals, staff cards with **[🟢 Accept Appeal]** and **[🔴 Deny Appeal]** buttons will appear here."
+    )
+    if is_slash:
+        await ctx_or_interaction.response.send_message(msg, ephemeral=False)
+    else:
+        await ctx_or_interaction.send(msg)
 
 
-@bot.command(name="postappealpanel", aliases=["setup_appeals", "appealpanel"])
-@commands.has_permissions(administrator=True)
-async def post_appeal_panel(ctx: commands.Context):
-    """Post the public ban appeal embed with the [Submit Ban Appeal] button."""
+async def handle_post_appeal_panel(ctx_or_interaction, channel: discord.TextChannel, is_slash: bool):
     embed = discord.Embed(
         title="🛡️ DTEmpire Network • Ban Appeals",
         description=(
@@ -477,24 +528,289 @@ async def post_appeal_panel(ctx: commands.Context):
             "you can submit an official ban appeal here.\n\n"
             "**📌 Instructions:**\n"
             "• Click the **Submit Ban Appeal** button below.\n"
-            "• Provide your exact Minecraft in-game username.\n"
-            "• Enter the Ban ID shown on your kick/reconnect screen (`#WD-XXXXXXXX`).\n"
-            "• Answer the questions honestly with as much context as possible.\n\n"
-            "Our staff team will review your case. **You will receive a Direct Message on Discord when your appeal is reviewed.**"
+            "• Provide your Minecraft IGN, Ban ID (if available), and an honest explanation.\n"
+            "• Staff will review your submission and you will be notified via Discord DM."
         ),
         color=0x3498DB
     )
     embed.set_thumbnail(url="https://mc-heads.net/avatar/Watchdog/128")
-    embed.set_footer(text="DTEmpire Watchdog Security Network • Ban Appeals")
+    embed.set_footer(text="DTEmpire Security Network • Appeals Department")
 
     view = PublicAppealLaunchView()
-    await ctx.send(embed=embed, view=view)
     try:
-        await ctx.message.delete()
-    except Exception:
-        pass
+        await channel.send(embed=embed, view=view)
+        confirm = f"✅ Appeal panel successfully posted in {channel.mention}!"
+        if is_slash:
+            await ctx_or_interaction.response.send_message(confirm, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(confirm)
+    except Exception as e:
+        err = f"❌ Failed to post appeal panel: {e}"
+        if is_slash:
+            await ctx_or_interaction.response.send_message(err, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(err)
 
 
+async def handle_appeal_status(ctx_or_interaction, is_slash: bool):
+    guild = ctx_or_interaction.guild
+    if not guild:
+        msg = "❌ This command must be executed within a server."
+        if is_slash:
+            await ctx_or_interaction.response.send_message(msg, ephemeral=True)
+        else:
+            await ctx_or_interaction.send(msg)
+        return
+
+    cfg = load_config()
+    guild_cfg = cfg.get(str(guild.id), {})
+    ban_ch_id = guild_cfg.get("ban_channel_id")
+    log_ch_id = guild_cfg.get("log_channel_id")
+
+    ban_ch = guild.get_channel(ban_ch_id) if ban_ch_id else None
+    log_ch = guild.get_channel(log_ch_id) if log_ch_id else None
+
+    embed = discord.Embed(
+        title="🛡️ Watchdog Appeal System Status",
+        color=0x2ECC71,
+        timestamp=discord.utils.utcnow()
+    )
+
+    if ban_ch and isinstance(ban_ch, discord.TextChannel):
+        missing = check_channel_perms(guild.me, ban_ch)
+        status_text = "✅ Ready" if not missing else f"⚠️ Missing: {', '.join(missing)}"
+        embed.add_field(name="📢 Public Ban Channel", value=f"{ban_ch.mention} ({status_text})", inline=False)
+    else:
+        embed.add_field(name="📢 Public Ban Channel", value="❌ Not set (Run `/setbanchannel #channel`)", inline=False)
+
+    if log_ch and isinstance(log_ch, discord.TextChannel):
+        missing = check_channel_perms(guild.me, log_ch)
+        status_text = "✅ Ready" if not missing else f"⚠️ Missing: {', '.join(missing)}"
+        embed.add_field(name="⚖️ Staff Review Channel", value=f"{log_ch.mention} ({status_text})", inline=False)
+    else:
+        embed.add_field(name="⚖️ Staff Review Channel", value="❌ Not set (Run `/setappeallog #channel`)", inline=False)
+
+    embed.add_field(
+        name="🌐 Local Ban Bridge",
+        value=f"Active on `http://127.0.0.1:{LOCAL_API_PORT}/ban`",
+        inline=False
+    )
+    embed.set_footer(text="DTEmpire Watchdog Security Network")
+
+    if is_slash:
+        await ctx_or_interaction.response.send_message(embed=embed, ephemeral=False)
+    else:
+        await ctx_or_interaction.send(embed=embed)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# BOT CLIENT CLASS
+# ─────────────────────────────────────────────────────────────────────────────
+class WatchdogBotClient(commands.Bot):
+    def __init__(self):
+        intents = discord.Intents.default()
+        intents.message_content = True
+        super().__init__(command_prefix=["!", ">"], intents=intents)
+
+    async def setup_hook(self):
+        # Register persistent views so buttons work across bot restarts
+        self.add_view(PublicAppealLaunchView())
+        self.add_view(StaffAppealReviewView())
+        self.add_view(SpecificBanAppealView())
+        logger.info("Registered persistent Ban Appeal UI views.")
+
+        # Start Local Ban Bridge HTTP Server
+        asyncio.create_task(self.start_local_http_server())
+
+        # Sync Application Slash Commands
+        try:
+            synced = await self.tree.sync()
+            logger.info(f"Successfully synced {len(synced)} application slash commands.")
+        except Exception as e:
+            logger.error(f"Error syncing slash commands: {e}")
+
+    async def start_local_http_server(self):
+        app = web.Application()
+
+        async def handle_health(request: web.Request) -> web.Response:
+            return web.json_response({"status": "ok"})
+
+        app.router.add_post("/ban", self.handle_api_ban)
+        app.router.add_get("/health", handle_health)
+
+        runner = web.AppRunner(app)
+        await runner.setup()
+        site = web.TCPSite(runner, "127.0.0.1", LOCAL_API_PORT)
+        try:
+            await site.start()
+            logger.info(f"Local Watchdog HTTP Bridge listening on http://127.0.0.1:{LOCAL_API_PORT}")
+        except Exception as e:
+            logger.warning(f"Could not bind Local HTTP Bridge on port {LOCAL_API_PORT}: {e}")
+
+    async def handle_api_ban(self, request: web.Request) -> web.Response:
+        """Receives POST /ban from Minecraft Watchdog and posts ONE unified card with button."""
+        try:
+            data = await request.json()
+            ign = str(data.get("player", "Unknown")).strip()
+            ban_id = str(data.get("banId", "#WD-00000000")).strip()
+            reason = str(data.get("reason", "Rule Violation")).strip()
+            status = str(data.get("status", "Permanent Ban")).strip()
+            appeal_url = str(data.get("appealUrl", "http://dsc.gg/dtempire-server")).strip()
+
+            cfg = load_config()
+            posted_any = False
+
+            for gid_str, gcfg in cfg.items():
+                ban_ch_id = gcfg.get("ban_channel_id")
+                if not ban_ch_id:
+                    continue
+                ch = self.get_channel(ban_ch_id)
+                if isinstance(ch, discord.TextChannel):
+                    embed = create_ban_embed(ign, ban_id, reason, status, appeal_url)
+                    view = SpecificBanAppealView(ign=ign, ban_id=ban_id)
+                    await ch.send(embed=embed, view=view)
+                    posted_any = True
+                    logger.info(f"[Bridge] Posted unified ban card for {ign} ({ban_id}) in #{ch.name}")
+
+            if posted_any:
+                return web.json_response({"success": True})
+            else:
+                logger.warning(f"[Bridge] Received ban for {ign} but no ban_channel_id is configured!")
+                return web.json_response({"success": False, "error": "No ban channel configured"}, status=400)
+        except Exception as e:
+            logger.error(f"[Bridge] Error handling /ban request: {e}")
+            return web.json_response({"success": False, "error": str(e)}, status=500)
+
+
+bot = WatchdogBotClient()
+
+
+@bot.event
+async def on_ready():
+    bot_id = bot.user.id if bot.user else 0
+    logger.info(f"Bot connected as {bot.user} (ID: {bot_id})")
+
+
+@bot.event
+async def on_message(message: discord.Message):
+    await bot.process_commands(message)
+
+    # If a message comes from a Webhook with the Watchdog ban card:
+    # Delete the webhook post and replace it with ONE unified card from the bot with the button!
+    if message.guild and message.webhook_id and message.embeds:
+        for embed in message.embeds:
+            if embed.title and "WATCHDOG BAN ENFORCED" in embed.title:
+                # Auto-save ban channel if not already configured
+                cfg = load_config()
+                gid = str(message.guild.id)
+                if gid not in cfg:
+                    cfg[gid] = {}
+                if not cfg[gid].get("ban_channel_id"):
+                    cfg[gid]["ban_channel_id"] = message.channel.id
+                    save_config(cfg)
+                    channel_name = getattr(message.channel, "name", str(message.channel.id))
+                    logger.info(f"Auto-configured ban_channel_id to {message.channel.id} (#{channel_name})")
+
+                raw_player = extract_field_value(embed, "Player")
+                ign = re.sub(r"[`*_\s]", "", raw_player) or "Player"
+                raw_ban_id = extract_field_value(embed, "Ban ID")
+                ban_id = re.sub(r"[`*_\s]", "", raw_ban_id) or "N/A"
+                raw_reason = extract_field_value(embed, "Reason") or "Rule Violation"
+                raw_status = extract_field_value(embed, "Status") or "Permanent Ban"
+
+                # Attempt to delete the raw webhook post to avoid two separate messages
+                try:
+                    await message.delete()
+                except Exception:
+                    pass
+
+                # Post ONE unified rich card directly from the bot WITH the button attached!
+                unified_embed = create_ban_embed(ign, ban_id, raw_reason, raw_status)
+                reply_view = SpecificBanAppealView(ign=ign, ban_id=ban_id)
+                await message.channel.send(embed=unified_embed, view=reply_view)
+                logger.info(f"[Webhook Intercept] Replaced webhook with unified ban card for {ign} ({ban_id})")
+                break
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# SLASH COMMANDS (Modern Discord /commands)
+# ─────────────────────────────────────────────────────────────────────────────
+@bot.tree.command(name="setbanchannel", description="Set the channel where Watchdog ban records with appeal buttons will appear")
+@app_commands.describe(channel="Text channel for public Watchdog ban cards")
+@app_commands.default_permissions(administrator=True)
+async def slash_set_ban_channel(interaction: discord.Interaction, channel: discord.TextChannel):
+    await handle_set_ban_channel(interaction, channel, is_slash=True)
+
+
+@bot.tree.command(name="setappeallog", description="Set the private staff channel where submitted appeals are reviewed")
+@app_commands.describe(channel="Staff channel for reviewing appeals with Accept/Deny buttons")
+@app_commands.default_permissions(administrator=True)
+async def slash_set_appeal_log(interaction: discord.Interaction, channel: discord.TextChannel):
+    await handle_set_appeal_log(interaction, channel, is_slash=True)
+
+
+@bot.tree.command(name="banapeal", description="Alias for /setappeallog - set the staff appeals review channel")
+@app_commands.describe(channel="Staff channel for reviewing appeals")
+@app_commands.default_permissions(administrator=True)
+async def slash_banapeal(interaction: discord.Interaction, channel: discord.TextChannel):
+    await handle_set_appeal_log(interaction, channel, is_slash=True)
+
+
+@bot.tree.command(name="postappealpanel", description="Post the permanent ban appeal panel embed with an appeal button")
+@app_commands.describe(channel="Channel to post the panel into (defaults to current channel)")
+@app_commands.default_permissions(administrator=True)
+async def slash_post_appeal_panel(interaction: discord.Interaction, channel: Optional[discord.TextChannel] = None):
+    target = channel or interaction.channel
+    if isinstance(target, discord.TextChannel):
+        await handle_post_appeal_panel(interaction, target, is_slash=True)
+    else:
+        await interaction.response.send_message("❌ Target must be a text channel.", ephemeral=True)
+
+
+@bot.tree.command(name="appealstatus", description="Show configured Watchdog channels and permission health")
+@app_commands.default_permissions(administrator=True)
+async def slash_appeal_status(interaction: discord.Interaction):
+    await handle_appeal_status(interaction, is_slash=True)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# PREFIX COMMANDS (!command or >command)
+# ─────────────────────────────────────────────────────────────────────────────
+@bot.command(name="setbanchannel", aliases=["banchannel", "setbans"])
+@commands.has_permissions(administrator=True)
+async def cmd_set_ban_channel(ctx: commands.Context, channel: discord.TextChannel):
+    """Set the public channel where Watchdog ban records are published."""
+    await handle_set_ban_channel(ctx, channel, is_slash=False)
+
+
+@bot.command(name="setappeallog", aliases=["setappeals", "appeallog", "banapeal"])
+@commands.has_permissions(administrator=True)
+async def cmd_set_appeal_log(ctx: commands.Context, channel: discord.TextChannel):
+    """Set the private channel where staff review submitted appeals."""
+    await handle_set_appeal_log(ctx, channel, is_slash=False)
+
+
+@bot.command(name="postappealpanel", aliases=["setup_appeals", "appealpanel"])
+@commands.has_permissions(administrator=True)
+async def cmd_post_appeal_panel(ctx: commands.Context, channel: Optional[discord.TextChannel] = None):
+    """Post the public ban appeal embed with the [Submit Ban Appeal] button."""
+    target = channel or ctx.channel
+    if isinstance(target, discord.TextChannel):
+        await handle_post_appeal_panel(ctx, target, is_slash=False)
+    else:
+        await ctx.send("❌ Target must be a text channel.")
+
+
+@bot.command(name="appealstatus", aliases=["watchdogstatus"])
+@commands.has_permissions(administrator=True)
+async def cmd_appeal_status(ctx: commands.Context):
+    """Check current configuration and bot channel permissions."""
+    await handle_appeal_status(ctx, is_slash=False)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# ENTRYPOINT
+# ─────────────────────────────────────────────────────────────────────────────
 def main():
     token = os.getenv("DISCORD_BOT_TOKEN") or os.getenv("DISCORD_TOKEN")
     if not token:
