@@ -54,27 +54,13 @@ public class AIChatSession {
         String model = plugin.getConfig().getString("api.model", "DiscordBot");
         String apiKey = plugin.getConfig().getString("api.api-key", "");
         int timeoutMs = plugin.getConfig().getInt("api.timeout-ms", 30000);
-        String systemPrompt = plugin.getConfig().getString("api.system-prompt",
-                "You are a helpful AI assistant in a Minecraft server. Keep responses concise.");
+        String systemPrompt = ServerContext.getFullServerPrompt(plugin);
 
         // Minecraft-only filter
         if (plugin.getConfig().getBoolean("ai-filter.minecraft-only", true)) {
             String refusal = plugin.getConfig().getString("ai-filter.refusal",
                     "&cI can only help with Minecraft and DTEmpire server topics.");
-            String gamemode = plugin.getConfig().getString("tracking.server.gamemode", "survival");
-            systemPrompt += "\n\nIMPORTANT: You ONLY answer questions about Minecraft gameplay, " +
-                    "DTEmpire server features, commands, plugins, or server-related topics. " +
-                    "If the user asks anything else (real life, coding, other games, politics, etc.), " +
-                    "reply EXACTLY with: \"" + refusal + "\".\n" +
-                    "This is a vanilla-style multiplayer server. Commands available are: " +
-                    "/aichat <message> (private AI chat), /aiexit (end AI chat), /aihelp (AI help), " +
-                    "/dtstatus, /dttracking, /dtempireai (admin). " +
-                    "Do NOT suggest commands that are not on this server, like /ah, /shop, /home, /tpa, /warp, " +
-                    "or any plugin commands unless the player asks about something the server clearly has. " +
-                    "Answer with vanilla Minecraft knowledge: crafting, mining, combat, redstone, building, " +
-                    "enchanting, brewing, farms, biomes, mobs, commands like /gamemode, /tp, /give, /kill, " +
-                    "/time, /weather, /effect, /spawnpoint, /whitelist, /op, etc. " +
-                    "Server gamemode is " + gamemode + ". Keep responses concise (under 256 chars for chat).";
+            systemPrompt += "\n\nIMPORTANT: If the user asks about non-Minecraft topics (real life, other games, politics, coding outside Minecraft), reply EXACTLY with: \"" + refusal + "\".";
         }
 
         if (apiKey.isEmpty()) {

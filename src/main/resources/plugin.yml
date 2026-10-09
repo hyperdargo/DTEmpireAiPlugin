@@ -1,9 +1,9 @@
 name: DTEmpireAIChat
-version: "1.0.1"
+version: "1.1.0"
 main: com.dtempire.aichat.DTEmpireAIChatPlugin
 api-version: "1.21"
 author: "dtempire"
-description: "Private AI chat sessions for minecraft servers. Tracks server metrics and sends to Discord."
+description: "Autonomous AI Game Master, Adaptive Player Profiler, Daily Quests & Hypixel Watchdog Anti-Cheat"
 
 commands:
   aichat:
@@ -18,6 +18,18 @@ commands:
     description: Show AI help and commands
     usage: /aihelp
     permission: dtempire.aichat
+  aidaily:
+    description: View or claim your tailored daily quest and bounty
+    usage: /aidaily [claim]
+    aliases: [daily, quest]
+  aiadmin:
+    description: AI Game Master administrative controls and events
+    usage: /aiadmin <event|gift|broadcast|stats|carepackage|reload>
+    permission: dtempire.admin
+  watchdog:
+    description: Hypixel-style Watchdog Anti-Cheat inspection, testing, and reports
+    usage: /watchdog <report|test|inspect|ban|stats>
+    aliases: [wd]
   dtstatus:
     description: Post server status to Discord now
     usage: /dtstatus
@@ -30,3 +42,15 @@ commands:
     description: Reload config and restart tracking
     usage: /dtempireai <restart|reload|status>
     permission: dtempire.tracking.admin
+
+permissions:
+  dtempire.aichat:
+    default: true
+  dtempire.daily:
+    default: true
+  dtempire.watchdog.report:
+    default: true
+  dtempire.watchdog.staff:
+    default: op
+  dtempire.admin:
+    default: op

@@ -11,37 +11,44 @@ public class ChatListener implements Listener {
 
     private final DTEmpireAIChatPlugin plugin;
     private final AIChatManager manager;
+    private final PublicChatAIHandler publicChatAIHandler;
 
-    public ChatListener(DTEmpireAIChatPlugin plugin, AIChatManager manager) {
+    public ChatListener(DTEmpireAIChatPlugin plugin, AIChatManager manager, PublicChatAIHandler publicChatAIHandler) {
         this.plugin = plugin;
         this.manager = manager;
+        this.publicChatAIHandler = publicChatAIHandler;
     }
 
     @EventHandler(priority = EventPriority.LOWEST)
     public void onChat(AsyncPlayerChatEvent event) {
         Player player = event.getPlayer();
-        if (!manager.hasSession(player)) return;
+        if (manager.hasSession(player)) {
+            // Private AI mode: nobody else sees this message
+            event.setCancelled(true);
 
-        // Private AI mode: nobody else sees this message
-        event.setCancelled(true);
+            String message = event.getMessage();
+            AIChatSession session = manager.getSession(player);
+            session.addMessage("user", message);
+            player.sendMessage(plugin.color(plugin.getConfig().getString("messages.player-prefix",
+                    "&8[&aYou&8] &r") + message));
 
-        String message = event.getMessage();
-        AIChatSession session = manager.getSession(player);
-        session.addMessage("user", message);
-        player.sendMessage(plugin.color(plugin.getConfig().getString("messages.player-prefix",
-                "&8[&aYou&8] &r") + message));
+            session.sendToAI(plugin).thenAccept(reply -> {
+                if (reply == null) {
+                    player.sendMessage(plugin.color(plugin.getConfig().getString("messages.ai-error",
+                            "&8[&bAI&8] &cError contacting AI service. Please try again.")));
+                    return;
+                }
+                String prefix = plugin.color(plugin.getConfig().getString("messages.ai-prefix",
+                        "&8[&bAI&8] &r"));
+                player.sendMessage(prefix + reply);
+                session.addMessage("assistant", reply);
+            });
+            return;
+        }
 
-        session.sendToAI(plugin).thenAccept(reply -> {
-            if (reply == null) {
-                player.sendMessage(plugin.color(plugin.getConfig().getString("messages.ai-error",
-                        "&8[&bAI&8] &cError contacting AI service. Please try again.")));
-                return;
-            }
-            String prefix = plugin.color(plugin.getConfig().getString("messages.ai-prefix",
-                    "&8[&bAI&8] &r"));
-            player.sendMessage(prefix + reply);
-            session.addMessage("assistant", reply);
-        });
+        // Public chat mode: player's message appears to all players,
+        // and the AI autonomously evaluates if it should respond or keep quiet!
+        publicChatAIHandler.processPublicMessage(player, event.getMessage());
     }
 
     @EventHandler

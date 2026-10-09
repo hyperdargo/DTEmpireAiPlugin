@@ -14,15 +14,18 @@ public class AIHelpCommand implements CommandExecutor {
 
     @Override
     public boolean onCommand(CommandSender sender, Command command, String label, String[] args) {
-        String help = plugin.getConfig().getString("messages.aihelp",
-                "&8[&bDTEmpire AI&8] &r&lCommands\n" +
-                "&e/aichat <msg>&r - Talk privately with our AI assistant\n" +
-                "&e/aiexit&r - End your private AI chat\n" +
-                "&e/aihelp&r - Show this help\n" +
-                "&7The AI answers Minecraft & DTEmpire topics only.");
-        for (String line : help.split("\\\\n")) {
-            sender.sendMessage(plugin.color(line));
+        sender.sendMessage(plugin.color("&8&m────────────────────────────────────────"));
+        sender.sendMessage(plugin.color("&8[&bHermes AI Game Master&8] &r&lCommands"));
+        sender.sendMessage(plugin.color("&e@ai <question>&r - Ask Hermes directly in public server chat"));
+        sender.sendMessage(plugin.color("&e/aichat <msg>&r - Talk privately with the server AI assistant"));
+        sender.sendMessage(plugin.color("&e/aiexit&r - End your private AI chat session"));
+        sender.sendMessage(plugin.color("&e/aidaily&r - View & claim tailored daily quests & rewards"));
+        sender.sendMessage(plugin.color("&e/watchdog report <player>&r - Report suspicious players to Watchdog"));
+        if (sender.hasPermission("dtempire.admin") || sender.isOp()) {
+            sender.sendMessage(plugin.color("&c/aiadmin &7- Game Master event controls & player gifts"));
+            sender.sendMessage(plugin.color("&c/watchdog &7- Anti-cheat inspections, aura bot tests & bans"));
         }
+        sender.sendMessage(plugin.color("&8&m────────────────────────────────────────"));
         return true;
     }
 }

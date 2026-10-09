@@ -1,4 +1,4 @@
-# DTEmpireAIChat Configuration
+# DTEmpireAIChat & Autonomous AI Game Master Configuration
 # API endpoint for the AI service (your OmniRoute /chat/completions endpoint)
 api:
   # Base URL for the AI API (e.g., http://127.0.0.1:25607 or https://route.ankitgupta.com.np/v1)
@@ -42,6 +42,65 @@ ai-filter:
   # Refusal message when the question is not Minecraft-related
   refusal: "&cI can only help with Minecraft and DTEmpire server topics."
 
+# AI Game Master & Dynamic Events
+gamemaster:
+  # How often (minutes) autonomous events roll (meteor drops, blood moons, golden hours)
+  event-interval-minutes: 45
+  # Enable random autonomous events
+  events-enabled: true
+
+# Sympathy Care Packages
+care-packages:
+  # Enable care packages for struggling players (died 3x quickly or in lava)
+  enabled: true
+  # Cooldown per player in minutes
+  cooldown-minutes: 30
+
+# Hypixel-style Watchdog Anti-Cheat
+watchdog:
+  enabled: true
+  # Max total violation level before auto-ban
+  max-ban-vl: 10
+  # Broadcast Hypixel ban message when cheater is caught
+  broadcast-bans: true
+  # Discord invite link displayed on ban screens and kick screens for appeals
+  discord-appeal-url: "https://discord.gg/dtempire"
+  # Check thresholds
+  checks:
+    reach-max-blocks: 3.9
+    angle-max-degrees: 95.0
+    autoclicker-max-cps: 20
+    fly-hover-ticks: 40
+    speed-max-blocks-per-tick: 0.72
+
+# GitHub Auto-Updater (checks releases and downloads into plugins/update/)
+updater:
+  enabled: true
+  repo-owner: "hyperdargo"
+  repo-name: "DTEmpireAiPlugin"
+  # Automatically download new .jar releases to plugins/update/
+  auto-download: true
+  # How often (hours) to check GitHub releases
+  check-interval-hours: 6
+
+# Public Chat AI Observer (Hermes listens to public chat and intervenes if needed)
+public-chat-ai:
+  # Enable autonomous public chat assistance
+  enabled: true
+  # Minimum cooldown in seconds between public AI responses
+  cooldown-seconds: 12
+
+# DTEmpire Server Lore, Rules & Knowledge Base (injected into AI context)
+server-info:
+  name: "DTEmpire"
+  ip: "play.dtempire.com"
+  gamemode: "Survival SMP"
+  rules:
+    - "No hacking, reach, autoclickers, or cheat clients (Watchdog is actively monitoring)"
+    - "No griefing or stealing from other players' builds"
+    - "Be respectful to all players and staff members"
+    - "No advertising or spamming chat"
+
 # Discord server tracking
 tracking:
   # Master switch
@@ -84,11 +143,17 @@ tracking:
     # Manual storage allocation (GB). 0 = auto-detect from disk
     storage-max-gb: 0
 
-# Join/leave tracking
+# Join/leave tracking & Welcome Experience
 welcome:
   enabled: true
-  # {player} placeholder is replaced with player name
-  message: "&8[&bDTEmpire&8] &rWelcome &f{player}&r! Type &e/aihelp&r for AI features."
-  # Delay before welcome (ticks, 20 = 1 second)
+  # Delay before welcome sequence executes (ticks, 20 = 1 second)
   delay-ticks: 40
-  show-aihelp: true
+  # Returning player message ({player} placeholder)
+  message: "&8[&bDTEmpire&8] &rWelcome back, &f{player}&r! Type &e/aidaily&r for today's quest."
+  # First-time player join broadcast
+  first-join-broadcast: "&6[Welcome] &fLet's give a warm welcome to &e{player} &ffor joining &bDTEmpire&f for the first time! 🎉"
+  first-join-title: "&6&lWELCOME TO DTEMPIRE"
+  first-join-subtitle: "&fYour adventure begins! Type &e/aihelp"
+  first-join-firework: true
+  starter-kit:
+    enabled: true

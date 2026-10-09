@@ -61,7 +61,7 @@ public class TrackingCommand implements CommandExecutor {
                 return true;
             }
             if (args.length == 0) {
-                sender.sendMessage(plugin.color("&8[&bDTEmpire&8] &eUsage: /dtempireai <restart|reload|status>"));
+                sender.sendMessage(plugin.color("&8[&bDTEmpire&8] &eUsage: /dtempireai <restart|reload|status|update>"));
                 return true;
             }
             String sub = args[0].toLowerCase();
@@ -76,7 +76,16 @@ public class TrackingCommand implements CommandExecutor {
                 sender.sendMessage(plugin.color("&8[&bDTEmpire&8] &eConfigured: " + (plugin.getTrackingReporter().isConfigured() ? "&aYES" : "&cNO")));
                 return true;
             }
-            sender.sendMessage(plugin.color("&8[&bDTEmpire&8] &eUnknown subcommand. Use: restart, reload, status"));
+            if (sub.equals("update") || sub.equals("checkupdate")) {
+                sender.sendMessage(plugin.color("&8[&bDTEmpire&8] &7Checking GitHub for plugin updates..."));
+                if (plugin.getPluginUpdater() != null) {
+                    plugin.getPluginUpdater().checkForUpdate(sender, true);
+                } else {
+                    sender.sendMessage(plugin.color("&8[&bDTEmpire&8] &cUpdater is not initialized."));
+                }
+                return true;
+            }
+            sender.sendMessage(plugin.color("&8[&bDTEmpire&8] &eUnknown subcommand. Use: restart, reload, status, update"));
             return true;
         }
         return false;
