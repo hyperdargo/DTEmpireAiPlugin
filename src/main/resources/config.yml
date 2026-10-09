@@ -91,17 +91,10 @@ watchdog:
     # Heuristic Anti-Xray (tracks rare ore velocity and ore-to-stone mining ratio)
     xray-alerts: true
 
-  # Discord Ban Logging & Appeals
+  # Discord Ban Logging
   discord:
     # Webhook URL to automatically post ban embeds when Watchdog bans a player
     bans-webhook-url: ""
-
-  # Local API Server for Discord Bot interaction (instant unbans & ban lookups)
-  api:
-    enabled: true
-    host: "127.0.0.1"
-    port: 25609
-    secret-key: "dtempire-watchdog-secret-key"
 
 # GitHub Auto-Updater (checks releases and downloads into plugins/update/)
 updater:
