@@ -35,11 +35,12 @@ logging.basicConfig(level=logging.INFO, format="[%(asctime)s] [%(name)s/%(leveln
 logger = logging.getLogger("WatchdogAppealBot")
 
 CONFIG_FILE = Path(__file__).parent / "appeal_config.json"
+PENDING_UNBANS_FILE = Path(__file__).parent / "pending_unbans.json"
 LOCAL_API_PORT = 25608
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# CONFIG PERSISTENCE
+# CONFIG & AUTO-UNBAN PERSISTENCE
 # ─────────────────────────────────────────────────────────────────────────────
 def load_config() -> dict:
     try:
@@ -60,11 +61,85 @@ def save_config(data: dict):
         logger.error(f"Error saving {CONFIG_FILE}: {e}")
 
 
+def load_pending_unbans() -> list[str]:
+    try:
+        if PENDING_UNBANS_FILE.exists():
+            return json.loads(PENDING_UNBANS_FILE.read_text(encoding="utf-8"))
+    except Exception as e:
+        logger.error(f"Error reading {PENDING_UNBANS_FILE}: {e}")
+    return []
+
+
+def save_pending_unbans(unbans: list[str]):
+    try:
+        PENDING_UNBANS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = PENDING_UNBANS_FILE.with_suffix(".tmp")
+        tmp.write_text(json.dumps(unbans, indent=2), encoding="utf-8")
+        tmp.replace(PENDING_UNBANS_FILE)
+    except Exception as e:
+        logger.error(f"Error saving {PENDING_UNBANS_FILE}: {e}")
+
+
+def try_direct_sqlite_unban(player_name: str):
+    """Directly removes player from any accessible tracking.db SQLite database."""
+    import sqlite3
+    db_candidates = [
+        Path("/var/lib/dtempire/data/servers/4046c6fc975bf26b0e302b685c404b8b/plugins/DTEmpireAIChat/tracking.db"),
+        Path("/home/dargo/DTEmpireAIChat/tracking.db"),
+    ]
+    try:
+        for p in Path("/var/lib/dtempire/data/servers").glob("*/plugins/DTEmpireAIChat/tracking.db"):
+            if p not in db_candidates:
+                db_candidates.append(p)
+    except Exception:
+        pass
+
+    for db_path in db_candidates:
+        if db_path.exists():
+            try:
+                conn = sqlite3.connect(str(db_path))
+                c = conn.cursor()
+                c.execute("DELETE FROM watchdog_bans WHERE LOWER(player_name) = LOWER(?)", (player_name,))
+                c.execute("DELETE FROM watchdog_violations WHERE LOWER(player_name) = LOWER(?)", (player_name,))
+                conn.commit()
+                conn.close()
+                logger.info(f"[AutoUnban] Direct SQLite unban executed for {player_name} in {db_path}")
+            except Exception as e:
+                logger.warning(f"[AutoUnban] Direct SQLite unban notice for {db_path}: {e}")
+
+
+def add_pending_unban(player_name: str):
+    clean = player_name.strip()
+    if not clean:
+        return
+    current = load_pending_unbans()
+    if clean.lower() not in [p.lower() for p in current]:
+        current.append(clean)
+        save_pending_unbans(current)
+        logger.info(f"[AutoUnban] Queued auto-unban for {clean}")
+    try_direct_sqlite_unban(clean)
+
+
+def remove_pending_unban(player_name: str):
+    current = load_pending_unbans()
+    updated = [p for p in current if p.lower() != player_name.strip().lower()]
+    save_pending_unbans(updated)
+    logger.info(f"[AutoUnban] Completed and acknowledged unban for {player_name}")
+
+
 def extract_field_value(embed: discord.Embed, field_name: str) -> str:
     for f in embed.fields:
         if f.name and field_name.lower() in f.name.lower():
             return f.value or ""
     return ""
+
+
+def extract_discord_user_id(embed: discord.Embed) -> int:
+    val = extract_field_value(embed, "Discord User")
+    match = re.search(r"(\d{17,20})", val)
+    if match:
+        return int(match.group(1))
+    return 0
 
 
 def check_channel_perms(bot_member: discord.Member, channel: discord.TextChannel) -> list[str]:
@@ -149,26 +224,49 @@ class StaffDenyReasonModal(discord.ui.Modal, title="Deny Ban Appeal"):
             await interaction.message.edit(embed=embed, view=view)
 
         # DM notification to player
-        try:
-            target_user = await interaction.client.fetch_user(self.target_user_id)
-            if target_user:
-                dm_embed = discord.Embed(
-                    title="⚖️ DTEmpire Ban Appeal Decision: DENIED",
-                    description=(
-                        f"Hello {target_user.mention},\n\n"
-                        f"Your ban appeal for Minecraft account **`{self.ign}`** has been reviewed by staff and was **DENIED**.\n\n"
-                        f"**Reason:** {self.reason_input.value}\n\n"
-                        f"If you have further questions, you may contact senior administration."
-                    ),
-                    color=0xE74C3C
-                )
-                dm_embed.set_footer(text="DTEmpire Server Management")
-                await target_user.send(embed=dm_embed)
-        except Exception as e:
-            logger.warning(f"Could not send DM to {self.target_user_id}: {e}")
+        dm_sent = False
+        target_user = None
+        if self.target_user_id:
+            try:
+                target_user = await interaction.client.fetch_user(self.target_user_id)
+                if target_user:
+                    dm_embed = discord.Embed(
+                        title="⚖️ DTEmpire Ban Appeal Decision: DENIED",
+                        description=(
+                            f"Hello {target_user.mention},\n\n"
+                            f"Your ban appeal for Minecraft account **`{self.ign}`** has been reviewed by staff and was **DENIED**.\n\n"
+                            f"**Reason:** {self.reason_input.value}\n\n"
+                            f"If you have further questions, you may contact server administration."
+                        ),
+                        color=0xE74C3C
+                    )
+                    dm_embed.set_footer(text="DTEmpire Server Management • Watchdog Anti-Cheat")
+                    await target_user.send(embed=dm_embed)
+                    dm_sent = True
+                    logger.info(f"Delivered denial DM to {self.target_user_id} for IGN {self.ign}")
+            except Exception as e:
+                logger.warning(f"Could not send DM to {self.target_user_id}: {e}")
 
+        # Fallback channel ping if user has DMs disabled
+        if not dm_sent and self.target_user_id and interaction.guild:
+            try:
+                cfg = load_config()
+                ban_ch_id = cfg.get(str(interaction.guild.id), {}).get("ban_channel_id")
+                ban_ch = interaction.guild.get_channel(ban_ch_id) if ban_ch_id else None
+                dest = ban_ch if isinstance(ban_ch, discord.TextChannel) else interaction.channel
+                if isinstance(dest, discord.TextChannel):
+                    await dest.send(
+                        f"📢 <@{self.target_user_id}> **Ban Appeal Update:** Your appeal for Minecraft account **`{self.ign}`** was **DENIED**.\n"
+                        f"**Reason:** {self.reason_input.value}"
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send fallback denial channel ping: {e}")
+
+        notif_status = "Player notified via DM." if dm_sent else "Player notified via Channel Ping (DMs were closed)."
         await interaction.followup.send(
-            f"❌ Appeal for **`{self.ign}`** has been **DENIED**. Reason logged and player notified via DM.",
+            f"❌ Appeal for **`{self.ign}`** has been **DENIED**.\n"
+            f"• Reason logged: *{self.reason_input.value}*\n"
+            f"• {notif_status}",
             ephemeral=True
         )
 
@@ -191,19 +289,17 @@ class StaffAppealReviewView(discord.ui.View):
         embed = interaction.message.embeds[0]
         ign = extract_field_value(embed, "Minecraft IGN")
         ign = re.sub(r"[`*_\s]", "", ign) or "Player"
-        user_mention = extract_field_value(embed, "Discord User")
+        target_user_id = extract_discord_user_id(embed)
 
-        target_user_id = 0
-        match = re.search(r"\((\d{17,20})\)", user_mention)
-        if match:
-            target_user_id = int(match.group(1))
+        # Trigger Automated In-Game Unban
+        add_pending_unban(ign)
 
         # Update Embed
         embed.color = 0x2ECC71  # Green
         new_fields = []
         for f in embed.fields:
             if f.name and "status" in f.name.lower():
-                new_fields.append((f.name, f"✅ **APPROVED** by {interaction.user.mention}", False))
+                new_fields.append((f.name, f"✅ **APPROVED & AUTO-UNBANNED** by {interaction.user.mention}", False))
             else:
                 new_fields.append((f.name, f.value, f.inline))
 
@@ -213,7 +309,7 @@ class StaffAppealReviewView(discord.ui.View):
 
         # Disable buttons
         view = discord.ui.View()
-        btn_accept = discord.ui.Button(label="Approved", style=discord.ButtonStyle.success, emoji="✅", disabled=True)
+        btn_accept = discord.ui.Button(label="Approved & Unbanned", style=discord.ButtonStyle.success, emoji="✅", disabled=True)
         btn_deny = discord.ui.Button(label="Deny Appeal", style=discord.ButtonStyle.danger, emoji="🔴", disabled=True)
         view.add_item(btn_accept)
         view.add_item(btn_deny)
@@ -221,6 +317,7 @@ class StaffAppealReviewView(discord.ui.View):
         await interaction.message.edit(embed=embed, view=view)
 
         # DM notification to player
+        dm_sent = False
         if target_user_id:
             try:
                 target_user = await interaction.client.fetch_user(target_user_id)
@@ -230,21 +327,38 @@ class StaffAppealReviewView(discord.ui.View):
                         description=(
                             f"Congratulations {target_user.mention}!\n\n"
                             f"Your ban appeal for Minecraft account **`{ign}`** has been **APPROVED** by DTEmpire staff.\n\n"
-                            f"Your account is being unbanned. Please ensure you comply with all server rules going forward.\n"
+                            f"✅ **You have been automatically unbanned!** You may now connect back to the server.\n"
+                            f"Please make sure to follow all server rules going forward.\n\n"
                             f"Welcome back to DTEmpire!"
                         ),
                         color=0x2ECC71
                     )
-                    dm_embed.set_footer(text="DTEmpire Server Management")
+                    dm_embed.set_footer(text="DTEmpire Server Management • Watchdog Anti-Cheat")
                     await target_user.send(embed=dm_embed)
+                    dm_sent = True
+                    logger.info(f"Delivered approval DM to {target_user_id} for IGN {ign}")
             except Exception as e:
                 logger.warning(f"Could not send approval DM to {target_user_id}: {e}")
 
+        # Fallback channel ping if user has DMs disabled
+        if not dm_sent and target_user_id and interaction.guild:
+            try:
+                cfg = load_config()
+                ban_ch_id = cfg.get(str(interaction.guild.id), {}).get("ban_channel_id")
+                ban_ch = interaction.guild.get_channel(ban_ch_id) if ban_ch_id else None
+                dest = ban_ch if isinstance(ban_ch, discord.TextChannel) else interaction.channel
+                if isinstance(dest, discord.TextChannel):
+                    await dest.send(
+                        f"📢 <@{target_user_id}> **Ban Appeal Update:** Your appeal for Minecraft account **`{ign}`** has been **APPROVED**! You are now unbanned in-game."
+                    )
+            except Exception as e:
+                logger.warning(f"Failed to send fallback approval channel ping: {e}")
+
+        notif_status = "Player notified via DM." if dm_sent else "Player notified via Channel Ping (DMs were closed)."
         await interaction.followup.send(
             f"✅ Appeal for **`{ign}`** has been **APPROVED**!\n"
-            f"Player has been notified via DM.\n\n"
-            f"⚠️ **Console Reminder:** To unban in-game, execute:\n"
-            f"```\nwatchdog unban {ign}\n```",
+            f"• **Auto-Unban:** Player has been automatically queued & unbanned in Minecraft (no console required!).\n"
+            f"• {notif_status}",
             ephemeral=True
         )
 
@@ -257,12 +371,7 @@ class StaffAppealReviewView(discord.ui.View):
         embed = interaction.message.embeds[0]
         ign = extract_field_value(embed, "Minecraft IGN")
         ign = re.sub(r"[`*_\s]", "", ign) or "Player"
-        user_mention = extract_field_value(embed, "Discord User")
-
-        target_user_id = 0
-        match = re.search(r"\((\d{17,20})\)", user_mention)
-        if match:
-            target_user_id = int(match.group(1))
+        target_user_id = extract_discord_user_id(embed)
 
         modal = StaffDenyReasonModal(target_user_id=target_user_id, ign=ign)
         await interaction.response.send_modal(modal)
@@ -635,7 +744,26 @@ class WatchdogBotClient(commands.Bot):
         async def handle_health(request: web.Request) -> web.Response:
             return web.json_response({"status": "ok"})
 
+        async def handle_get_unbans(request: web.Request) -> web.Response:
+            """Minecraft plugin polls GET /unbans to receive players approved for unban."""
+            unbans = load_pending_unbans()
+            return web.json_response({"unbans": unbans})
+
+        async def handle_ack_unban(request: web.Request) -> web.Response:
+            """Minecraft plugin confirms POST /unbans/ack with {"player": "IGN"}."""
+            try:
+                data = await request.json()
+                player = str(data.get("player", "")).strip()
+                if player:
+                    remove_pending_unban(player)
+                    return web.json_response({"success": True})
+            except Exception as e:
+                logger.error(f"[Bridge] Error acknowledging unban: {e}")
+            return web.json_response({"success": False, "error": "Invalid payload"}, status=400)
+
         app.router.add_post("/ban", self.handle_api_ban)
+        app.router.add_get("/unbans", handle_get_unbans)
+        app.router.add_post("/unbans/ack", handle_ack_unban)
         app.router.add_get("/health", handle_health)
 
         runner = web.AppRunner(app)

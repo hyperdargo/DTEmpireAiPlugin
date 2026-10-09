@@ -18,5 +18,8 @@ Thumbs.db
 # Secrets — never commit these
 .env
 *.env
+__pycache__/
+*.pyc
+discord-bot/pending_unbans.json
 config.yml
-!src/main/resources/config.yml__pycache__/
+!src/main/resources/config.yml

@@ -3,7 +3,9 @@ package com.dtempire.aichat.watchdog;
 import com.dtempire.aichat.DTEmpireAIChatPlugin;
 import com.dtempire.aichat.SqliteStore;
 import com.google.gson.JsonArray;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 import org.bukkit.Bukkit;
 import org.bukkit.Location;
 import org.bukkit.Sound;
@@ -45,11 +47,13 @@ public class WatchdogManager {
     private final Map<UUID, Location> lastGroundLocation = new ConcurrentHashMap<>();
 
     private BukkitTask decayTask;
+    private BukkitTask unbanPollTask;
 
     public WatchdogManager(DTEmpireAIChatPlugin plugin, SqliteStore store) {
         this.plugin = plugin;
         this.store = store;
         startDecayTask();
+        startUnbanPollTask();
     }
 
     /** Periodic task to decay old violations over time so clean play resets accumulated flags. */
@@ -156,7 +160,77 @@ public class WatchdogManager {
                 }
             }
         }
+        // Also remove from vanilla ban list if present
+        try {
+            org.bukkit.BanList banList = Bukkit.getBanList(org.bukkit.BanList.Type.NAME);
+            if (banList != null && banList.isBanned(nameOrUuid)) {
+                banList.pardon(nameOrUuid);
+            }
+        } catch (Throwable ignored) {}
         return ok;
+    }
+
+    /**
+     * Periodic task to poll local Discord bot bridge for approved ban appeals
+     * and automatically unban them in-game without manual console access.
+     */
+    private void startUnbanPollTask() {
+        unbanPollTask = Bukkit.getScheduler().runTaskTimerAsynchronously(plugin, () -> {
+            try {
+                String botApiUrl = plugin.getConfig().getString("watchdog.discord.bot-api-url", "http://127.0.0.1:25608/ban");
+                if (botApiUrl == null || botApiUrl.trim().isEmpty()) return;
+
+                String baseUrl = botApiUrl.replaceAll("/ban/?$", "");
+
+                HttpRequest request = HttpRequest.newBuilder()
+                        .uri(URI.create(baseUrl + "/unbans"))
+                        .GET()
+                        .timeout(Duration.ofSeconds(3))
+                        .build();
+
+                HttpResponse<String> response = HttpClient.newHttpClient().send(request, HttpResponse.BodyHandlers.ofString());
+                if (response.statusCode() == 200) {
+                    JsonObject json = JsonParser.parseString(response.body()).getAsJsonObject();
+                    if (json.has("unbans") && json.get("unbans").isJsonArray()) {
+                        JsonArray arr = json.getAsJsonArray("unbans");
+                        for (JsonElement el : arr) {
+                            String playerToUnban = el.getAsString();
+                            if (playerToUnban == null || playerToUnban.trim().isEmpty()) continue;
+
+                            // Execute unban
+                            unban(playerToUnban);
+                            plugin.getLogger().info("[Watchdog] Auto-unbanned player from Discord appeal: " + playerToUnban);
+
+                            // Send ACK to Discord bot
+                            JsonObject ackPayload = new JsonObject();
+                            ackPayload.addProperty("player", playerToUnban);
+
+                            HttpRequest ackReq = HttpRequest.newBuilder()
+                                    .uri(URI.create(baseUrl + "/unbans/ack"))
+                                    .header("Content-Type", "application/json")
+                                    .POST(HttpRequest.BodyPublishers.ofString(ackPayload.toString()))
+                                    .timeout(Duration.ofSeconds(3))
+                                    .build();
+
+                            HttpClient.newHttpClient().send(ackReq, HttpResponse.BodyHandlers.discarding());
+
+                            // Notify online staff in-game
+                            String alert = plugin.color("&8[&cWatchdog&8] &aDiscord Appeal Approved: Automatically unbanned &e" + playerToUnban + "&a!");
+                            Bukkit.getScheduler().runTask(plugin, () -> {
+                                for (Player staff : Bukkit.getOnlinePlayers()) {
+                                    if (isStaff(staff)) {
+                                        staff.sendMessage(alert);
+                                        staff.playSound(staff.getLocation(), Sound.BLOCK_NOTE_BLOCK_BELL, 1.0f, 1.2f);
+                                    }
+                                }
+                            });
+                        }
+                    }
+                }
+            } catch (Exception ignored) {
+                // Bridge offline or idle
+            }
+        }, 100L, 100L); // Poll every 5 seconds (100 ticks)
     }
 
     /**
@@ -366,6 +440,9 @@ public class WatchdogManager {
     public void cleanup() {
         if (decayTask != null) {
             decayTask.cancel();
+        }
+        if (unbanPollTask != null) {
+            unbanPollTask.cancel();
         }
         violations.clear();
         clickHistory.clear();
