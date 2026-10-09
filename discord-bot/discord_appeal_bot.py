@@ -289,13 +289,24 @@ class PlayerBanAppealModal(discord.ui.Modal, title="🛡️ DTEmpire Ban Appeal 
             )
             return
 
-        # Reply to user
-        await interaction.response.send_message(
-            f"✅ **Thank you, {interaction.user.mention}!**\n"
-            f"Your appeal for Minecraft account **`{self.ign.value}`** has been submitted to DTEmpire staff.\n"
-            f"You will receive a notification via Direct Message when a decision is made.",
-            ephemeral=True
-        )
+        # Check bot permissions in staff channel before telling user success
+        if not isinstance(log_channel, discord.TextChannel):
+            await interaction.response.send_message(
+                "❌ Configured staff channel is not a standard text channel.",
+                ephemeral=True
+            )
+            return
+
+        bot_member = guild.me
+        perms = log_channel.permissions_for(bot_member)
+        if not perms.view_channel or not perms.send_messages or not perms.embed_links:
+            await interaction.response.send_message(
+                f"❌ **Delivery Error:** The bot cannot post in the staff review channel ({log_channel.mention}).\n"
+                f"👉 The channel is restricted and the bot is missing **View Channel**, **Send Messages**, or **Embed Links** permissions.\n"
+                f"Please ask an administrator to grant the bot access in that channel's permission settings.",
+                ephemeral=True
+            )
+            return
 
         # Post Embed in Staff Review Channel
         embed = discord.Embed(
@@ -313,8 +324,29 @@ class PlayerBanAppealModal(discord.ui.Modal, title="🛡️ DTEmpire Ban Appeal 
         embed.set_footer(text="DTEmpire Watchdog Anti-Cheat • Ban Appeals")
 
         view = StaffAppealReviewView()
-        if isinstance(log_channel, discord.TextChannel):
+        try:
             await log_channel.send(embed=embed, view=view)
+        except discord.Forbidden:
+            await interaction.response.send_message(
+                f"❌ **Delivery Failed (403 Forbidden):** The bot was blocked from posting in {log_channel.mention}.\n"
+                f"Please ensure the bot role has **View Channel**, **Send Messages**, and **Embed Links** permissions in that channel.",
+                ephemeral=True
+            )
+            return
+        except Exception as e:
+            await interaction.response.send_message(
+                f"❌ An error occurred while submitting your appeal: `{e}`",
+                ephemeral=True
+            )
+            return
+
+        # Reply to user with success confirmation only after embed posted
+        await interaction.response.send_message(
+            f"✅ **Thank you, {interaction.user.mention}!**\n"
+            f"Your appeal for Minecraft account **`{self.ign.value}`** has been submitted to DTEmpire staff.\n"
+            f"You will receive a notification via Direct Message when a decision is made.",
+            ephemeral=True
+        )
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -400,6 +432,30 @@ async def set_appeal_log(ctx: commands.Context, channel: discord.TextChannel):
     """Set the private channel where staff review submitted appeals."""
     if not ctx.guild:
         return
+
+    # Check bot permissions in target channel
+    bot_member = ctx.guild.me
+    perms = channel.permissions_for(bot_member)
+    missing = []
+    if not perms.view_channel:
+        missing.append("View Channel")
+    if not perms.send_messages:
+        missing.append("Send Messages")
+    if not perms.embed_links:
+        missing.append("Embed Links")
+
+    if missing:
+        await ctx.send(
+            f"❌ **Cannot set {channel.mention} as staff appeals channel!**\n"
+            f"The bot is missing the following permissions in that channel: **{', '.join(missing)}**.\n\n"
+            f"🔧 **How to fix:**\n"
+            f"1. In Discord, right-click/tap `{channel.name}` → **Edit Channel** → **Permissions**\n"
+            f"2. Add role `{bot.user.name if bot.user else 'Bot'}` (or the bot's role)\n"
+            f"3. Turn ON ✅ **View Channel**, ✅ **Send Messages**, and ✅ **Embed Links**\n"
+            f"4. Run `!setappeallog {channel.mention}` again."
+        )
+        return
+
     cfg = load_config()
     gid = str(ctx.guild.id)
     if gid not in cfg:
@@ -407,7 +463,7 @@ async def set_appeal_log(ctx: commands.Context, channel: discord.TextChannel):
     cfg[gid]["log_channel_id"] = channel.id
     save_config(cfg)
 
-    await ctx.send(f"✅ Staff ban appeals review channel set to {channel.mention}!")
+    await ctx.send(f"✅ Staff ban appeals review channel successfully set to {channel.mention}!\nPermissions verified (View Channel, Send Messages, Embed Links).")
 
 
 @bot.command(name="postappealpanel", aliases=["setup_appeals", "appealpanel"])
