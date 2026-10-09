@@ -107,7 +107,7 @@ api:
 # Watchdog Discord Appeal URL
 watchdog:
   enabled: true
-  discord-appeal-url: "https://discord.gg/dtempire"
+  discord-appeal-url: "http://dsc.gg/dtempire-server"
 
 # Server info injected into AI context
 server-info:

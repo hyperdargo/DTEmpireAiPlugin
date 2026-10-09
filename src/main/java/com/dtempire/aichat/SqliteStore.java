@@ -384,6 +384,30 @@ public class SqliteStore {
         return false;
     }
 
+    public synchronized boolean unbanWatchdog(String nameOrUuid) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM watchdog_bans WHERE uuid = ? OR LOWER(player_name) = LOWER(?)")) {
+            ps.setString(1, nameOrUuid);
+            ps.setString(2, nameOrUuid);
+            int rows = ps.executeUpdate();
+            return rows > 0;
+        } catch (SQLException ignored) {
+            return false;
+        }
+    }
+
+    public synchronized boolean clearWatchdogViolations(String nameOrUuid) {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM watchdog_violations WHERE uuid = ? OR LOWER(player_name) = LOWER(?)")) {
+            ps.setString(1, nameOrUuid);
+            ps.setString(2, nameOrUuid);
+            int rows = ps.executeUpdate();
+            return rows > 0;
+        } catch (SQLException ignored) {
+            return false;
+        }
+    }
+
     public synchronized int getWatchdogBanCount() {
         try (Statement st = conn.createStatement();
              ResultSet rs = st.executeQuery("SELECT COUNT(*) FROM watchdog_bans")) {

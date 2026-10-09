@@ -3,8 +3,10 @@ package com.dtempire.aichat.watchdog;
 import com.dtempire.aichat.DTEmpireAIChatPlugin;
 import com.dtempire.aichat.SqliteStore;
 import org.bukkit.Bukkit;
+import org.bukkit.Location;
 import org.bukkit.Sound;
 import org.bukkit.entity.Player;
+import org.bukkit.scheduler.BukkitTask;
 
 import java.util.ArrayDeque;
 import java.util.Deque;
@@ -13,7 +15,10 @@ import java.util.Random;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
-/** Central Watchdog Anti-Cheat Manager. Manages violation levels, staff alerts, and ban executions. */
+/**
+ * Central Watchdog Anti-Cheat Manager.
+ * Manages violation levels, staff-only alerts, violation decay, and ban executions.
+ */
 public class WatchdogManager {
 
     private final DTEmpireAIChatPlugin plugin;
@@ -26,12 +31,54 @@ public class WatchdogManager {
     private final Map<UUID, Deque<Long>> clickHistory = new ConcurrentHashMap<>();
     // Consecutive air ticks for fly checks
     private final Map<UUID, Integer> airTicks = new ConcurrentHashMap<>();
+    // Timestamp of last damage taken (damage knockback false-positive immunity)
+    private final Map<UUID, Long> lastDamageTime = new ConcurrentHashMap<>();
+    // Last verified ground location for rubberbanding/setbacks
+    private final Map<UUID, Location> lastGroundLocation = new ConcurrentHashMap<>();
 
-    private static final int MAX_BAN_VL = 10;
+    private BukkitTask decayTask;
 
     public WatchdogManager(DTEmpireAIChatPlugin plugin, SqliteStore store) {
         this.plugin = plugin;
         this.store = store;
+        startDecayTask();
+    }
+
+    /** Periodic task to decay old violations over time so clean play resets accumulated flags. */
+    private void startDecayTask() {
+        decayTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
+            for (Map.Entry<UUID, Map<String, Integer>> entry : violations.entrySet()) {
+                Map<String, Integer> checkMap = entry.getValue();
+                checkMap.entrySet().removeIf(checkEntry -> {
+                    int newVal = checkEntry.getValue() - 3;
+                    if (newVal <= 0) {
+                        return true;
+                    }
+                    checkEntry.setValue(newVal);
+                    return false;
+                });
+                if (checkMap.isEmpty()) {
+                    violations.remove(entry.getKey());
+                }
+            }
+        }, 300L, 300L); // Every 15 seconds (300 ticks)
+    }
+
+    public void recordDamage(Player player) {
+        lastDamageTime.put(player.getUniqueId(), System.currentTimeMillis());
+    }
+
+    public boolean hasRecentDamage(Player player) {
+        long last = lastDamageTime.getOrDefault(player.getUniqueId(), 0L);
+        return (System.currentTimeMillis() - last) < 2000L; // 2 seconds knockback immunity
+    }
+
+    public void setLastGroundLocation(Player player, Location loc) {
+        lastGroundLocation.put(player.getUniqueId(), loc);
+    }
+
+    public Location getLastGroundLocation(Player player) {
+        return lastGroundLocation.get(player.getUniqueId());
     }
 
     public void recordClick(Player player) {
@@ -74,6 +121,33 @@ public class WatchdogManager {
         return map.values().stream().mapToInt(Integer::intValue).sum();
     }
 
+    public void clearVL(UUID uuid) {
+        violations.remove(uuid);
+        airTicks.remove(uuid);
+    }
+
+    public boolean unban(String nameOrUuid) {
+        boolean ok = store.unbanWatchdog(nameOrUuid);
+        try {
+            UUID id = UUID.fromString(nameOrUuid);
+            clearVL(id);
+        } catch (IllegalArgumentException ignored) {
+            for (Player p : Bukkit.getOnlinePlayers()) {
+                if (p.getName().equalsIgnoreCase(nameOrUuid)) {
+                    clearVL(p.getUniqueId());
+                    break;
+                }
+            }
+        }
+        return ok;
+    }
+
+    /**
+     * Flags a player violation.
+     * Alerts are sent ONLY to OP / Admin staff.
+     * Auto-bans trigger ONLY for definitive cheat trap strikes (KILLAURA_BOT).
+     * Movement flags (Speed/Fly/etc) are NEVER auto-permabanned.
+     */
     public void flag(Player player, String check, int vlAmount, String details) {
         Map<String, Integer> map = violations.computeIfAbsent(player.getUniqueId(), k -> new ConcurrentHashMap<>());
         int current = map.merge(check, vlAmount, Integer::sum);
@@ -82,42 +156,54 @@ public class WatchdogManager {
         // Persist violation log to SQLite
         store.logWatchdogViolation(player.getUniqueId(), player.getName(), check, current, details);
 
-        // Alert online staff
-        String alert = plugin.color("&c[WATCHDOG] &f" + player.getName() + " &7failed &c" + check +
+        // Alert online staff/OPs ONLY — regular players NEVER see Watchdog messages!
+        String alert = plugin.color("&8[&cWatchdog&8] &c" + player.getName() + " &7failed &e" + check +
                 " &7(VL: &c" + current + "&7/Total: &c" + total + "&7) &8[" + details + "]");
 
         for (Player staff : Bukkit.getOnlinePlayers()) {
-            if (staff.hasPermission("dtempire.watchdog.staff") || staff.isOp()) {
+            if (isStaff(staff)) {
                 staff.sendMessage(alert);
             }
         }
         plugin.getLogger().warning("[Watchdog] " + player.getName() + " flagged " + check + " (VL: " + current + ", details: " + details + ")");
 
-        // If player hit the KillAura orbiting bot -> instant ban!
-        // If total VL exceeds threshold -> Watchdog ban!
-        if ("KILLAURA_BOT".equalsIgnoreCase(check) || total >= MAX_BAN_VL) {
+        // Auto-ban policy:
+        // 1. KILLAURA_BOT (striking the invisible orbiting trap bot) -> 100% definitive cheat client -> Instant ban!
+        // 2. Movement checks (SPEED, FLY, JESUS) -> NEVER auto-ban! (Prevents false bans from cave jumping / lag)
+        boolean isAuraBot = "KILLAURA_BOT".equalsIgnoreCase(check);
+        boolean allowMovementAutoban = plugin.getConfig().getBoolean("watchdog.autoban-movement", false);
+        int maxMovementVL = plugin.getConfig().getInt("watchdog.max-ban-vl", 100);
+
+        if (isAuraBot) {
+            punishBan(player, "KILLAURA_BOT");
+        } else if (allowMovementAutoban && total >= maxMovementVL) {
             punishBan(player, check);
         }
     }
 
-    /** Authentic Hypixel-style Watchdog Ban Execution. */
+    /**
+     * Executes Watchdog Ban.
+     * Notice is sent ONLY to OP / Admin staff (no public broadcast to regular players).
+     */
     public void punishBan(Player player, String reason) {
         String banId = "#WD-" + (10000000 + random.nextInt(90000000));
         store.recordWatchdogBan(player.getUniqueId(), player.getName(), reason, banId);
 
-        // Hypixel-style server announcement
-        Bukkit.broadcastMessage(plugin.color("&8&m──────────────────────────────────────────────────"));
-        Bukkit.broadcastMessage(plugin.color("&c&l[WATCHDOG CHEAT DETECTION]"));
-        Bukkit.broadcastMessage(plugin.color("&fA player has been removed from your game for hacking or behavioral violations."));
-        Bukkit.broadcastMessage(plugin.color("&7Thanks for your report, please continue to help us keep DTEmpire fair!"));
-        Bukkit.broadcastMessage(plugin.color("&8&m──────────────────────────────────────────────────"));
+        // Alert online staff / OPs ONLY — regular players do NOT see this announcement!
+        String staffNotice = plugin.color("&8&m──────────────────────────────────────────────────\n" +
+                "&8[&cWatchdog&8] &c&lSTAFF NOTICE: &e" + player.getName() + " &7has been banned by Watchdog!\n" +
+                "&7Reason: &c" + reason + " &8| &7Ban ID: &e" + banId + "\n" +
+                "&8&m──────────────────────────────────────────────────");
 
-        for (Player p : Bukkit.getOnlinePlayers()) {
-            p.playSound(p.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.5f, 1.0f);
+        for (Player staff : Bukkit.getOnlinePlayers()) {
+            if (isStaff(staff)) {
+                staff.sendMessage(staffNotice);
+                staff.playSound(staff.getLocation(), Sound.ENTITY_LIGHTNING_BOLT_THUNDER, 0.5f, 1.0f);
+            }
         }
 
-        // Kick the player with ban screen
-        String discordUrl = plugin.getConfig().getString("watchdog.discord-appeal-url", "https://discord.gg/dtempire");
+        // Kick the player with ban screen and Discord appeal link
+        String discordUrl = plugin.getConfig().getString("watchdog.discord-appeal-url", "http://dsc.gg/dtempire-server");
         String kickMsg = plugin.color(
                 "&c&lYou are permanently banned from DTEmpire Network!\n\n" +
                 "&7Reason: &fWATCHDOG CHEAT DETECTION (&c" + reason + "&7)\n" +
@@ -131,8 +217,26 @@ public class WatchdogManager {
         player.kickPlayer(kickMsg);
     }
 
+    /** Helper to check if a player is staff or OP. */
+    public static boolean isStaff(Player player) {
+        return player.isOp() || player.hasPermission("dtempire.watchdog.staff") || player.hasPermission("dtempire.admin");
+    }
+
     public void onQuit(Player player) {
         clickHistory.remove(player.getUniqueId());
         airTicks.remove(player.getUniqueId());
+        lastDamageTime.remove(player.getUniqueId());
+        lastGroundLocation.remove(player.getUniqueId());
+    }
+
+    public void cleanup() {
+        if (decayTask != null) {
+            decayTask.cancel();
+        }
+        violations.clear();
+        clickHistory.clear();
+        airTicks.clear();
+        lastDamageTime.clear();
+        lastGroundLocation.clear();
     }
 }

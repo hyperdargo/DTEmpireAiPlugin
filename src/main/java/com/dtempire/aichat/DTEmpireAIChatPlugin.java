@@ -103,6 +103,7 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
         stopTracking();
         if (gameMaster != null) gameMaster.stopEventScheduler();
         if (telemetryManager != null) telemetryManager.shutdown();
+        if (watchdogManager != null) watchdogManager.cleanup();
         if (manager != null) manager.shutdown();
         getLogger().info("DTEmpireAIChat disabled.");
     }

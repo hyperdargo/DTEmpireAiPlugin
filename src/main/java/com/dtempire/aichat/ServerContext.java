@@ -18,7 +18,7 @@ public class ServerContext {
         sb.append("Server Name: ").append(plugin.getConfig().getString("server-info.name", "DTEmpire")).append("\n");
         sb.append("Server IP: ").append(plugin.getConfig().getString("server-info.ip", "play.dtempire.com")).append("\n");
         sb.append("Gamemode: ").append(plugin.getConfig().getString("server-info.gamemode", "Survival SMP")).append("\n");
-        sb.append("Discord Appeal / Community: ").append(plugin.getConfig().getString("watchdog.discord-appeal-url", "https://discord.gg/dtempire")).append("\n\n");
+        sb.append("Discord Appeal / Community: ").append(plugin.getConfig().getString("watchdog.discord-appeal-url", "http://dsc.gg/dtempire-server")).append("\n\n");
 
         sb.append("=== UNIQUE DTEMPIRE SERVER FEATURES ===\n");
         sb.append("1. AI Game Master (Hermes): You monitor the world, trigger dynamic events (Meteor Showers with loot chests, Blood Moons, Golden Hours), and send sympathy care packages to players struggling or dying in lava.\n");

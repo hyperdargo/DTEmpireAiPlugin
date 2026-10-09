@@ -59,19 +59,22 @@ care-packages:
 # Hypixel-style Watchdog Anti-Cheat
 watchdog:
   enabled: true
-  # Max total violation level before auto-ban
-  max-ban-vl: 10
-  # Broadcast Hypixel ban message when cheater is caught
-  broadcast-bans: true
+  # Auto-ban is enabled ONLY for definitive KILLAURA_BOT decoy hits.
+  # Movement checks (Speed/Fly/Jesus) will rubberband/setback and alert staff, NEVER false-permaban.
+  autoban-movement: false
+  max-ban-vl: 100
+  # When cheaters are banned, only alert online staff and OPs (never spam regular players)
+  broadcast-bans: false
+  alerts-only-for-staff: true
   # Discord invite link displayed on ban screens and kick screens for appeals
-  discord-appeal-url: "https://discord.gg/dtempire"
-  # Check thresholds
+  discord-appeal-url: "http://dsc.gg/dtempire-server"
+  # Check thresholds (tuned to prevent false positives during cave jumping/ceiling running)
   checks:
-    reach-max-blocks: 3.9
-    angle-max-degrees: 95.0
+    reach-max-blocks: 4.35
+    angle-max-degrees: 115.0
     autoclicker-max-cps: 20
-    fly-hover-ticks: 40
-    speed-max-blocks-per-tick: 0.72
+    fly-hover-ticks: 80
+    speed-max-blocks-per-tick: 1.15
 
 # GitHub Auto-Updater (checks releases and downloads into plugins/update/)
 updater:
