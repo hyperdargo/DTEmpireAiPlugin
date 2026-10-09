@@ -1,171 +1,140 @@
-# DTEmpire AI Chat Plugin
+# DTEmpire AI Game Master & Anti-Cheat Plugin
 
-A **Paper/Spigot Minecraft plugin** that adds:
-- **Private AI Chat** — players talk 1-on-1 with an AI via `/aichat`
-- **Live Discord Server Status** — one embed in your Discord channel that auto-updates (no spam)
-- **Join/Leave Tracking + Playtime Leaderboards** — persisted in SQLite (survives restarts)
-- **Minecraft-Only AI Filter** — AI refuses non-Minecraft topics
+[![Release](https://img.shields.io/github/v/release/hyperdargo/DTEmpireAiPlugin?style=flat-square)](https://github.com/hyperdargo/DTEmpireAiPlugin/releases/latest)
+[![Paper 1.21+](https://img.shields.io/badge/Paper-1.21%2B-blue?style=flat-square)](https://papermc.io)
+[![License](https://img.shields.io/badge/license-MIT-green?style=flat-square)](LICENSE)
 
----
-
-## Features
-
-### 🤖 Private AI Chat
-| Command | Description |
-|---------|-------------|
-| `/aichat <message>` | Start or continue a private AI chat |
-| `/aiexit` | End your AI chat session |
-| `/aihelp` | List AI commands |
-
-Each player gets their own private conversation. Messages are invisible to others.
-
-### 📊 Discord Server Status (Auto-updating Embed)
-A **single embed** in your Discord channel that edits itself — never posts duplicates.
-
-Shows:
-- **Online** — `X/Y` players
-- **RAM** — Used / Allocated + %
-- **CPU** — %
-- **Storage** — Used / Allocated + %
-- **Private AI Chat** — Active sessions count
-- **Top Online** — 🥇🥈🥉 by accumulated playtime (persisted)
-- **Recently Joined** — Last 3 unique players
-- **Recently Left** — Last 3 unique players
-- **Game Mode** — survival / creative / etc.
-- **Server Version** — Paper version
-- **Server IP** — Copyable code block (manual config)
-
-### ⏱ Tracking Interval
-- Default **1 minute** (configurable)
-- **Instant updates** on player join/leave
-
-### 🗃 SQLite Persistence
-`plugins/DTEmpireAIChat/tracking.db` stores:
-- `playtime` table — accumulated minutes per player (never resets)
-- `recent_joins` / `recent_leaves` — last 10 unique events
-- Survives restarts, crashes, redeploys
-
-### 🛡 Minecraft-Only AI Filter
-When enabled (default), AI **refuses** non-Minecraft questions (e.g. coding, real life, other games) with a polite message.
+An intelligent, autonomous **Paper/Spigot Minecraft plugin (Java 17+, 1.21+)** powered by Hermes AI that transforms your server with:
+- 🛡️ **Hypixel-Style Watchdog Anti-Cheat** — Invisible orbiting KillAura trap bot, movement/combat checks, auto-bans & Discord appeal screens
+- 👑 **Autonomous AI Game Master (`/aiadmin`)** — Dynamic scheduled server events (Meteor Drops, Blood Moons, Golden Hours)
+- 🧠 **Player Telemetry & Archetype Profiling** — Tracks playstyles (Miner, Builder, Warrior, Explorer, Survivor)
+- 🎁 **Adaptive Sympathy Care Packages** — AI detects death streaks or lava loss and delivers survival relief
+- 📜 **Tailored Daily Tasks (`/aidaily`)** — Daily quests and bounties customized to each player's playstyle
+- 💬 **Public Chat AI Observer & Private Chat (`/aichat`)** — Hermes observes chat, answers questions when tagged (`@ai`) or needed, and stays quiet during banter
+- 🎉 **Cinematic First-Join Welcomes** — Server broadcast, title banner, celebratory fireworks, starter kit & AI whispers
+- 🔄 **GitHub Auto-Updater** — Automatically downloads new releases into `plugins/update/`
+- 📊 **Live Discord Tracking & Leaderboards** — Real-time self-updating embed and SQLite persistence
 
 ---
 
-## Installation
+## ✨ Key Features
 
-1. Drop `DTEmpireAIChat.jar` into `plugins/`
-2. Start server → generates `config.yml`
-3. Edit `plugins/DTEmpireAIChat/config.yml`:
+### 🛡️ Hypixel-Style Watchdog Anti-Cheat
+Keep your server clean and fair with automated heuristic detection and honeypot bot traps:
+- **Orbiting KillAura Honeypot Bot:** When a player is reported or suspicious, Watchdog spawns an invisible rotating bot (`Watchdog`) around their head. Natural players never attack it, while automated KillAura/TriggerBot cheats lock onto it and get caught immediately.
+- **Combat & Movement Checks:**
+  - **Reach Check:** Detects combat hits exceeding 3.9 blocks in survival mode.
+  - **Angle Check:** Flags impossible attack angles outside natural field-of-view (> 95°).
+  - **AutoClicker / CPS:** Rolling click history detecting CPS exceeding 20 clicks/sec.
+  - **Flight / Glide Check:** Detects prolonged mid-air hovering (> 40 ticks without descent).
+  - **Speed / Bhop Check:** Flags unnatural horizontal velocity (> 0.72 blocks/tick).
+  - **Jesus / Water Walk:** Detects walking across liquid surfaces without submerging.
+- **Server-Wide Ban Announcements & Discord Appeals:**
+  - Broadcasts authentic Hypixel-style ban wave announcements.
+  - Generates unique `#WD-XXXXXXXX` ban IDs stored in SQLite.
+  - Displays ban ID, reason, and a direct Discord appeal link on both kick and login screens.
 
-```yaml
-# Required for Discord tracking
-tracking:
-  enabled: true
-  discord:
-    webhook-url: "https://discord.com/api/webhooks/..."   # or bot-token + channel-id
-  resources:
-    ram-max-mb: 11344         # How much RAM the server WAS GIVEN (from panel/-Xmx)
-    storage-max-gb: 193       # Storage allocation in panel
-  server:
-    name: "WarmBrew SMP"
-    motd: "Sit back, relax & enjoy the survival vibe."
-    gamemode: "survival"
-    ip: "play.warmbrew.example:25565"
-```
+### 👑 Autonomous AI Game Master (`/aiadmin`)
+Hermes acts as an autonomous server director, scheduling and triggering world events:
+- **Celestial Meteor Supply Drop:** Strikes lightning and spawns a supply chest loaded with diamonds, golden apples, and totems at random surface coordinates near active players.
+- **Blood Moon:** Midnight thunderstorm empowering monsters with glowing and speed, granting surviving players double XP until sunrise.
+- **Golden Hour:** Blesses active players with Haste and Regeneration buffs for 15 minutes.
+- **Admin Control:** Staff can trigger events, send gifts, check player telemetry, or inspect stats anytime via `/aiadmin`.
 
-4. Run `/dtempireai restart` (or restart server)
+### 🧠 Adaptive Telemetry & Sympathy Care Packages
+- Real-time logging of blocks mined, rare ores, placements, mob kills, PvP kills, deaths, and distance.
+- Categorizes players into archetypes:
+  - ⛏️ **Miner** — deep cave dwellers & ore hunters
+  - 🔨 **Builder** — architects & structure builders
+  - ⚔️ **Warrior** — PvE/PvP fighters
+  - 🧭 **Explorer** — surface travelers
+  - 🛡️ **Survivor** — balanced survivalists
+- **Sympathy Gifts:** If a player dies 3+ times in rapid succession or falls into lava, Hermes delivers a sympathy care package (Golden Apples, Fire Resistance potions, tools, food) with a 30-minute cooldown.
+
+### 📜 Personalized Daily Tasks (`/aidaily`)
+- Each player receives 1 daily quest tailored specifically to their archetype.
+- Command `/aidaily` shows a visual progress bar: `[■■■■■■□□□□] (6/10)`.
+- Completing tasks awards bounties (diamonds, building materials, combat elixirs) via `/aidaily claim` with celebratory fireworks.
+
+### 💬 Chat AI: Public Observer & Private Chat
+- **Public Chat Observer:** Hermes watches public chat. If a player asks a question or tags `@ai <question>`, Hermes answers concisely in chat (< 200 chars). For casual banter, "gg", and jokes, Hermes stays silent.
+- **Private Chat Session:** Players can initiate a private 1-on-1 AI chat with `/aichat <message>` without other players seeing it. Use `/aiexit` to finish.
+- **Server-Aware Lore:** Hermes knows server rules, features, commands, and Discord links, ensuring accurate answers rather than generic vanilla facts.
+
+### 🎉 Cinematic First-Join Welcome Experience
+- First-time players receive a server-wide welcome broadcast, title banner, celebratory fireworks, starter food and tools, and a personal welcome whisper from Hermes.
+- Returning players receive a welcome back message with their daily quest status.
+
+### 🔄 GitHub Auto-Updater
+- Checks `hyperdargo/DTEmpireAiPlugin` GitHub releases periodically.
+- Automatically downloads newer `.jar` releases into `plugins/update/DTEmpireAIChat.jar` to be safely applied on the next restart or reload.
+- Manual check anytime via `/dtempireai update`.
 
 ---
 
-## Commands & Permissions
+## 📋 Commands & Permissions
 
 | Command | Permission | Description |
-|---------|------------|-------------|
-| `/aichat` | `dtempire.aichat` | Private AI chat |
-| `/aiexit` | `dtempire.aichat` | Exit AI chat |
-| `/aihelp` | `dtempire.aichat` | Show AI help |
-| `/dtstatus` | `dtempire.tracking.status` | Post status to Discord now |
-| `/dttracking <on\|off>` | `dtempire.tracking.toggle` | Toggle auto-updates |
-| `/dtempireai <restart\|reload\|status>` | `dtempire.tracking.admin` | Reload config & restart tracking |
+|---|---|---|
+| `@ai <question>` | *(Public chat)* | Ask Hermes directly in public server chat |
+| `/aichat <message>` | `dtempire.aichat` | Start or continue a private AI chat |
+| `/aiexit` | `dtempire.aichat` | End private AI chat session |
+| `/aihelp` | `dtempire.aichat` | Show AI commands and help guide |
+| `/aidaily [claim]` | `dtempire.daily` | View or claim your tailored daily quest and bounty |
+| `/watchdog report <player>` | `dtempire.watchdog.report` | Report suspicious players to Watchdog |
+| `/watchdog <test|inspect|ban|stats>` | `dtempire.watchdog.staff` | Anti-cheat inspection, aura bot tests & bans *(Staff)* |
+| `/aiadmin <event|gift|broadcast|stats>` | `dtempire.admin` | Game Master event director & gift manager *(Staff)* |
+| `/dtempireai <update|reload|status>` | `dtempire.tracking.admin` | Check/download plugin updates, reload config *(Admin)* |
+| `/dtstatus` | `dtempire.tracking.status` | Post Discord status embed immediately *(Admin)* |
+| `/dttracking <on|off>` | `dtempire.tracking.toggle` | Toggle automatic Discord tracking *(Admin)* |
 
 ---
 
-## Configuration Reference
+## 🚀 Installation & Quick Start
+
+1. Download `DTEmpireAIChat.jar` from the [Latest Release](https://github.com/hyperdargo/DTEmpireAiPlugin/releases/latest).
+2. Place the jar into your server's `plugins/` directory.
+3. Start the server to generate `plugins/DTEmpireAIChat/config.yml`.
+4. Configure your AI API key and settings:
 
 ```yaml
+# API endpoint (OmniRoute or OpenAI compatible)
 api:
-  base-url: "https://your-llm-endpoint/v1"
-  model: "YourModelName"
-  api-key: "sk-..."
-  timeout-ms: 30000
-  system-prompt: "You are a helpful Minecraft AI..."
+  base-url: "https://route.ankitgupta.com.np/v1"
+  model: "DiscordBot"
+  api-key: "YOUR_API_KEY_HERE"
 
-session:
-  inactivity-timeout: 300
-  max-history: 20
-
-messages:
-  ai-prefix: "&8[&bAI&8] &r"
-  player-prefix: "&8[&aYou&8] &r"
-  # ... (all messages customizable)
-
-ai-filter:
-  minecraft-only: true
-  refusal: "&cI can only help with Minecraft and DTEmpire server topics."
-
-tracking:
-  enabled: false
-  interval-minutes: 1
-  discord:
-    webhook-url: ""
-    bot-token: ""
-    channel-id: ""
-  server:
-    name: "DTEmpire"
-    motd: "Welcome to DTEmpire!"
-    gamemode: "survival"
-    ip: ""
-  embed:
-    show-online: true
-    show-ram: true
-    show-cpu: true
-    show-storage: true
-    show-ai-sessions: true
-    show-top-online: true
-    show-recent-joins: true
-    show-recent-leaves: true
-    show-gamemode: true
-    show-server-version: true
-    show-ip: true
-  thresholds:
-    ram-warning-percent: 80
-    cpu-warning-percent: 80
-    storage-warning-percent: 90
-  resources:
-    ram-max-mb: 0          # 0 = auto-detect JVM max
-    storage-max-gb: 0      # 0 = auto-detect disk total
-
-welcome:
+# Watchdog Discord Appeal URL
+watchdog:
   enabled: true
-  message: "&8[&bDTEmpire&8] &rWelcome &f{player}&r! Type &e/aihelp&r for AI features."
-  delay-ticks: 40
-  show-aihelp: true
+  discord-appeal-url: "https://discord.gg/dtempire"
+
+# Server info injected into AI context
+server-info:
+  name: "DTEmpire"
+  ip: "play.dtempire.com"
+  gamemode: "Survival SMP"
+
+# Discord status tracking embed (optional)
+tracking:
+  enabled: true
+  discord:
+    webhook-url: "https://discord.com/api/webhooks/..."
 ```
+
+5. Run `/dtempireai reload` in-game or restart your server.
 
 ---
 
-## Build from Source
+## 🛠️ Building from Source
+
+Requirements: Java 17+ and Maven.
 
 ```bash
-# Requires Java 17 + Maven
-mvn -q -DskipTests package
-# Output: target/DTEmpireAIChat.jar (includes shaded sqlite-jdbc)
+git clone https://github.com/hyperdargo/DTEmpireAiPlugin.git
+cd DTEmpireAiPlugin
+mvn clean package -DskipTests
 ```
 
----
-
-## Notes
-
-- **Discord embed single-message** — if you see duplicates, delete the old ones; the plugin will only edit the latest.
-- **RAM/Storage %** uses your `resources.*` config. Set to your panel allocation for accurate %.
-- **Playtime leaderboards** accumulate forever. A player who left weeks ago stays on the board until someone overtakes them.
-- **AI filter** is strict by design — turn off `ai-filter.minecraft-only` if you want open-ended chat.
+The compiled shaded jar will be located at:
+`target/DTEmpireAIChat.jar` (includes shaded `sqlite-jdbc` driver).
