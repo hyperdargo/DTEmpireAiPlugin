@@ -131,15 +131,16 @@ public class XrayTracker implements Listener {
         stats.distinctVeins.removeIf(v -> (now - v.time) > 180000L);
 
         // Evaluation Heuristics:
-        // 1. Vein velocity: 4+ distinct diamond/debris veins in under 3 minutes
+        // 1. Vein velocity: 3+ distinct diamond/debris veins in under 3 minutes
         int recentVeins = stats.distinctVeins.size();
         int totalMined = stats.stoneBlocks + stats.rareOres;
         double oreRatio = totalMined > 0 ? ((double) stats.rareOres / totalMined) * 100.0 : 0.0;
 
-        boolean suspiciousVelocity = recentVeins >= 4;
-        boolean suspiciousRatio = stats.rareOres >= 8 && oreRatio > 20.0 && stats.stoneBlocks < 40;
+        boolean suspiciousVelocity = recentVeins >= 3;
+        // 2. Suspicious ore ratio: 5+ rare ores with > 12% ratio (vanilla diamond mining is < 1.5%)
+        boolean suspiciousRatio = stats.rareOres >= 5 && oreRatio > 12.0 && totalMined >= 15;
 
-        if ((suspiciousVelocity || suspiciousRatio) && (now - stats.lastAlertTime > 45000L)) {
+        if ((suspiciousVelocity || suspiciousRatio) && (now - stats.lastAlertTime > 25000L)) {
             stats.lastAlertTime = now;
 
             String details = String.format("%d veins / %d ores in 3m (%.1f%% ratio) at X:%d Y:%d Z:%d",
@@ -147,5 +148,18 @@ public class XrayTracker implements Listener {
 
             watchdogManager.flag(player, "XRAY", 5, details);
         }
+    }
+
+    /**
+     * Returns mining statistics formatted for staff/console display.
+     */
+    public String getStatsSummary(UUID uuid) {
+        MiningStats stats = playerStats.get(uuid);
+        if (stats == null) return "No mining activity in current session.";
+        int recentVeins = stats.distinctVeins.size();
+        int totalMined = stats.stoneBlocks + stats.rareOres;
+        double oreRatio = totalMined > 0 ? ((double) stats.rareOres / totalMined) * 100.0 : 0.0;
+        return String.format("&e%d &7veins (3m) | &b%d &7rare ores | &7%d stone | &c%.1f%% &7ratio",
+                recentVeins, stats.rareOres, stats.stoneBlocks, oreRatio);
     }
 }

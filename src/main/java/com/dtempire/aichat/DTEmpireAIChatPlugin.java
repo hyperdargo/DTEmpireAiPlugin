@@ -37,6 +37,7 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
 
     // Hypixel Watchdog Anti-Cheat
     private WatchdogManager watchdogManager;
+    private XrayTracker xrayTracker;
 
     // Public Chat & Auto-Updater
     private PublicChatAIHandler publicChatAIHandler;
@@ -78,8 +79,9 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
 
         // 4. Watchdog Anti-Cheat & Anti-Xray
         watchdogManager = new WatchdogManager(this, manager.getStore());
+        xrayTracker = new XrayTracker(this, watchdogManager);
         getServer().getPluginManager().registerEvents(new WatchdogListener(this, watchdogManager), this);
-        getServer().getPluginManager().registerEvents(new XrayTracker(this, watchdogManager), this);
+        getServer().getPluginManager().registerEvents(xrayTracker, this);
         getCommand("watchdog").setExecutor(new WatchdogCommand(this, watchdogManager));
 
         // 5. Discord Tracking & Welcomer
@@ -248,5 +250,9 @@ public final class DTEmpireAIChatPlugin extends JavaPlugin {
 
     public BountyManager getBountyManager() {
         return bountyManager;
+    }
+
+    public XrayTracker getXrayTracker() {
+        return xrayTracker;
     }
 }

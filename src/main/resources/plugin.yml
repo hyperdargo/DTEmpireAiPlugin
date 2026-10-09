@@ -1,5 +1,5 @@
 name: DTEmpireAIChat
-version: "1.2.3"
+version: 1.2.5
 main: com.dtempire.aichat.DTEmpireAIChatPlugin
 api-version: "1.21"
 author: "dtempire"

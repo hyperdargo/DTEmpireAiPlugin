@@ -55,21 +55,30 @@ public class WatchdogManager {
     /** Periodic task to decay old violations over time so clean play resets accumulated flags. */
     private void startDecayTask() {
         decayTask = Bukkit.getScheduler().runTaskTimer(plugin, () -> {
-            for (Map.Entry<UUID, Map<String, Integer>> entry : violations.entrySet()) {
-                Map<String, Integer> checkMap = entry.getValue();
-                checkMap.entrySet().removeIf(checkEntry -> {
-                    int newVal = checkEntry.getValue() - 3;
-                    if (newVal <= 0) {
-                        return true;
+            try {
+                // Copy keys first — never mutate the map while iterating its entrySet
+                // (that was throwing ConcurrentModification inside removeIf and killing the task).
+                for (UUID uuid : new java.util.ArrayList<>(violations.keySet())) {
+                    Map<String, Integer> checkMap = violations.get(uuid);
+                    if (checkMap == null) continue;
+                    for (String check : new java.util.ArrayList<>(checkMap.keySet())) {
+                        Integer val = checkMap.get(check);
+                        if (val == null) continue;
+                        int newVal = val - 1;
+                        if (newVal <= 0) {
+                            checkMap.remove(check);
+                        } else {
+                            checkMap.put(check, newVal);
+                        }
                     }
-                    checkEntry.setValue(newVal);
-                    return false;
-                });
-                if (checkMap.isEmpty()) {
-                    violations.remove(entry.getKey());
+                    if (checkMap.isEmpty()) {
+                        violations.remove(uuid);
+                    }
                 }
+            } catch (Exception e) {
+                plugin.getLogger().warning("[Watchdog] Decay task error: " + e.getMessage());
             }
-        }, 300L, 300L); // Every 15 seconds (300 ticks)
+        }, 1200L, 1200L); // Every 60 seconds, decay -1 (XRAY VL sticks long enough to ban)
     }
 
     public void recordDamage(Player player) {
@@ -181,11 +190,15 @@ public class WatchdogManager {
         boolean isAuraBot = "KILLAURA_BOT".equalsIgnoreCase(check);
         boolean allowMovementAutoban = plugin.getConfig().getBoolean("watchdog.autoban-movement", false);
         int maxMovementVL = plugin.getConfig().getInt("watchdog.max-ban-vl", 100);
+        boolean allowXrayAutoban = plugin.getConfig().getBoolean("watchdog.autoban-xray", true);
+        int maxXrayVL = plugin.getConfig().getInt("watchdog.max-xray-ban-vl", 15);
 
         if (isAuraBot) {
             punishBan(player, "KILLAURA_BOT");
         } else if (allowMovementAutoban && total >= maxMovementVL) {
             punishBan(player, check);
+        } else if (allowXrayAutoban && "XRAY".equalsIgnoreCase(check) && total >= maxXrayVL) {
+            punishBan(player, "XRAY");
         }
     }
 

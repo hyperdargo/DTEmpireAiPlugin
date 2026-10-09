@@ -38,6 +38,7 @@ public class WatchdogCommand implements CommandExecutor {
             if (isStaff(sender)) {
                 sender.sendMessage(plugin.color("&e/watchdog test <player>&7 - Dispatch KillAura detection bot"));
                 sender.sendMessage(plugin.color("&e/watchdog inspect <player>&7 - View player violation levels & CPS"));
+                sender.sendMessage(plugin.color("&e/watchdog checkxray <player>&7 - View recent diamond/debris mining stats"));
                 sender.sendMessage(plugin.color("&e/watchdog ban <player>&7 - Force execute Watchdog ban"));
                 sender.sendMessage(plugin.color("&e/watchdog unban <player/uuid>&7 - Lift a Watchdog ban"));
                 sender.sendMessage(plugin.color("&e/watchdog clearvl <player>&7 - Reset player violation levels"));
@@ -67,11 +68,15 @@ public class WatchdogCommand implements CommandExecutor {
                 sender.sendMessage(plugin.color("&8[&cWatchdog&8] &aThanks for your report! Watchdog is silently investigating &e" + repTarget.getName() + "&a."));
 
                 // Notify online staff and OPs ONLY — regular players do NOT see reports!
-                String reportNotice = plugin.color("&8[&cWatchdog&8] &c[REPORT] &e" + sender.getName() + " &7reported &e" + repTarget.getName() + "&7. Summoning silent aura trap bot.");
+                String xraySummary = plugin.getXrayTracker().getStatsSummary(repTarget.getUniqueId());
+                String reportNotice = plugin.color("&8[&cWatchdog&8] &c[REPORT] &e" + sender.getName() + " &7reported &e" + repTarget.getName() + "&7. Summoning silent aura trap bot.\n&8[&cWatchdog&8] &7Mining Activity: " + xraySummary);
                 for (Player staff : Bukkit.getOnlinePlayers()) {
                     if (WatchdogManager.isStaff(staff) && !staff.equals(sender)) {
                         staff.sendMessage(reportNotice);
                     }
+                }
+                if (!(sender instanceof Player)) {
+                    sender.sendMessage(reportNotice);
                 }
                 break;
 
@@ -109,12 +114,33 @@ public class WatchdogCommand implements CommandExecutor {
                 }
                 int totalVL = watchdogManager.getTotalVL(insTarget);
                 int cps = watchdogManager.getCPS(insTarget);
+                String xraySum = plugin.getXrayTracker().getStatsSummary(insTarget.getUniqueId());
                 sender.sendMessage(plugin.color("&8&m────────────────────────────────────────"));
                 sender.sendMessage(plugin.color("&8[&cWatchdog Inspect&8] &fPlayer: &e" + insTarget.getName()));
                 sender.sendMessage(plugin.color("&7Total Violations (VL): &c" + totalVL));
                 sender.sendMessage(plugin.color("&7Current CPS: &e" + cps));
                 sender.sendMessage(plugin.color("&7Air Ticks: &f" + watchdogManager.getAirTicks(insTarget)));
+                sender.sendMessage(plugin.color("&7Mining Activity: " + xraySum));
                 sender.sendMessage(plugin.color("&8&m────────────────────────────────────────"));
+                break;
+
+            case "checkxray":
+            case "xray":
+                if (!isStaff(sender)) {
+                    sender.sendMessage(plugin.color("&cNo permission."));
+                    return true;
+                }
+                if (args.length < 2) {
+                    sender.sendMessage(plugin.color("&cUsage: /watchdog checkxray <player>"));
+                    return true;
+                }
+                Player xrTarget = Bukkit.getPlayer(args[1]);
+                if (xrTarget == null) {
+                    sender.sendMessage(plugin.color("&cPlayer not found or offline."));
+                    return true;
+                }
+                String xrSummary = plugin.getXrayTracker().getStatsSummary(xrTarget.getUniqueId());
+                sender.sendMessage(plugin.color("&8[&cWatchdog X-Ray&8] &fPlayer: &e" + xrTarget.getName() + "\n&8[&cWatchdog X-Ray&8] " + xrSummary));
                 break;
 
             case "ban":
