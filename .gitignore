@@ -19,4 +19,4 @@ Thumbs.db
 .env
 *.env
 config.yml
-!src/main/resources/config.yml
+!src/main/resources/config.yml__pycache__/

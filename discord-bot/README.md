@@ -1,48 +1,44 @@
 # 🛡️ DTEmpire Discord Ban Appeal Bot
 
-This standalone Discord bot connects directly with the **DTEmpireAIChat Watchdog Anti-Cheat** plugin running on your Paper Minecraft server.
+Interactive Ban Appeal Bot for **DTEmpire Watchdog Anti-Cheat** on Paper 1.21.4+.
 
 ### Features
 1. **Interactive Appeal Button (`[📩 Submit Ban Appeal]`):** Players click a single button to open a native Discord Modal popup.
 2. **Custom Modal Questions:**
    - Minecraft In-Game Name (IGN)
-   - Ban ID (found on kick screen, e.g. `#WD-84729103`)
+   - Ban ID (found on kick screen or webhook card, e.g. `#WD-84729103`)
    - What were you doing when banned?
    - Why should you be unbanned?
 3. **Staff Review Channel:**
-   - Sends the player's head avatar, Discord mention, and appeal answers into your private `#staff-appeals` channel.
-   - Interactive **`[🟢 Approve & Unban]`** and **`[🔴 Reject Appeal]`** buttons.
-4. **Instant In-Game Unban:**
-   - Clicking `[Approve & Unban]` instantly executes an unban on the Paper server via HTTP API (`POST /api/unban`).
-   - Watchdog broadcasts the pardon in Minecraft chat: `[Watchdog] Player1 was unbanned via approved Discord appeal!`.
-   - Sends a direct DM to the player letting them know their appeal was approved and giving them the server IP (`play.dtempire.com`)!
+   - Automatically posts the player's 3D skin head avatar, Discord mention, and appeal answers into your private staff review channel.
+   - Interactive **`[🟢 Accept Appeal]`** and **`[🔴 Deny Appeal]`** buttons.
+4. **Accept & Deny Workflow:**
+   - **Accept:** Marks the card green as Accepted, automatically sends a Discord DM to the player notifying them they have been unbanned, and provides staff with the exact console command to run (`watchdog unban <IGN>` or `pardon <IGN>`).
+   - **Deny:** Opens a modal for staff to input the denial reason, marks the card red as Denied, and automatically sends a Discord DM to the player with the staff's reason.
+5. **No Localhost API Required:**
+   - Functions 100% standalone without opening ports or configuring HTTP servers on your Minecraft host.
 
 ---
 
 ### Setup Instructions
 
-1. Copy `.env.example` to `.env`:
-   ```bash
-   cp .env.example .env
-   ```
-
-2. Configure your values in `.env`:
+1. Configure your bot token in `.env`:
    ```ini
-   DISCORD_BOT_TOKEN="your_bot_token_here"
-   APPEALS_CHANNEL_ID="123456789012345678"      # Channel where players click [Submit Ban Appeal]
-   STAFF_CHANNEL_ID="123456789012345678"        # Private channel where staff review appeals
-   WATCHDOG_API_URL="http://127.0.0.1:25609"
-   WATCHDOG_API_KEY="dtempire-watchdog-secret-key"
+   DISCORD_BOT_TOKEN="your_discord_bot_token"
    ```
 
-3. Launch the bot:
+2. Run the bot:
    ```bash
    python3 discord_appeal_bot.py
    ```
 
-4. In Discord:
-   - Go to your public `#ban-appeals` channel and type:
+3. In Discord:
+   - In your private staff channel, run:
      ```text
-     !setup_appeals
+     !setappeallog #staff-review
      ```
-   - The bot will post the permanent embed with the **`[📩 Submit Ban Appeal]`** button!
+   - In your public appeals channel (e.g. `#ban-appeals`), run:
+     ```text
+     !postappealpanel
+     ```
+   - The bot will post the permanent embed with the **`[📩 Submit Ban Appeal]`** button.
