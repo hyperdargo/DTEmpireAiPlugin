@@ -96,7 +96,7 @@ public class WatchdogListener implements Listener {
         if (player.getGameMode() != GameMode.SURVIVAL && player.getGameMode() != GameMode.ADVENTURE) {
             return;
         }
-        if (player.isFlying() || player.isGliding() || player.isInsideVehicle()) {
+        if (player.isFlying() || player.getAllowFlight() || player.isGliding() || player.isInsideVehicle() || player.isRiptiding() || player.isClimbing()) {
             watchdogManager.setAirTicks(player, 0);
             return;
         }
@@ -127,16 +127,16 @@ public class WatchdogListener implements Listener {
         // Low-ceiling / cave detection: check if there's solid rock 2 to 3 blocks above player's feet
         boolean hasLowCeiling = hasCeilingAbove(to);
 
-        if (onGround || inLiquid || isClimbable) {
+        if (onGround || inLiquid || isClimbable || hasLowCeiling) {
             watchdogManager.setAirTicks(player, 0);
             watchdogManager.setLastGroundLocation(player, to.clone());
         } else {
-            // Suspended in air
+            // Suspended in air with open sky/room
             int air = watchdogManager.getAirTicks(player) + 1;
             watchdogManager.setAirTicks(player, air);
 
-            // Fly check: must be suspended for over 80 ticks (4 seconds) without falling
-            if (air > 80 && dy >= -0.05 && player.getFallDistance() == 0.0f) {
+            // Fly check: must be suspended in open air for over 80 ticks (4 seconds) without falling
+            if (!hasLowCeiling && air > 80 && dy >= -0.05 && player.getFallDistance() == 0.0f) {
                 watchdogManager.flag(player, "FLY", 1, "Suspended in air for " + air + " ticks (dy: " + String.format("%.3f", dy) + ")");
                 // Rubberband setback to prevent illegitimate flying
                 Location safeLoc = watchdogManager.getLastGroundLocation(player);
