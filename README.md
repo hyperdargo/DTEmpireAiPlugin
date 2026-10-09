@@ -34,8 +34,10 @@ Keep your server clean and fair with automated heuristic detection and honeypot 
   - Automatically posts rich ban cards to your configured Discord bans channel via Webhook, displaying the player's avatar, Ban ID (`#WD-XXXXXXXX`), detection reason, and appeal instructions.
 - **Discord Ban Appeal System & Bot (`discord-bot/`):**
   - Players click `[📩 Submit Ban Appeal]` in Discord to open a native popup form (IGN, Ban ID, What happened, Why unban).
-  - Submissions are sent to `#staff-appeals` with **`[🟢 Approve & Unban]`** and **`[🔴 Reject Appeal]`** buttons.
-  - Clicking `[Approve & Unban]` instantly executes the unban on the Paper server via embedded API (`POST /api/unban`), broadcasts the pardon in Minecraft, and sends a DM to the player!
+  - Submissions are sent to your configured staff review channel with **`[🟢 Accept Appeal]`** and **`[🔴 Deny Appeal]`** buttons.
+  - Clicking **`[Accept Appeal]`** sends an automated DM to the player notifying them they were unbanned, and displays the console command for staff (`watchdog unban <IGN>`).
+  - Clicking **`[Deny Appeal]`** opens a modal for staff to enter a denial reason, updates the case, and sends an automated DM to the player with the reason.
+  - Fully standalone: no localhost ports or open network listeners needed on your Minecraft host!
 
 ### 👑 Autonomous AI Game Master (`/aiadmin`)
 Hermes acts as an autonomous server director, scheduling and triggering world events:
