@@ -235,33 +235,41 @@ class StaffAppealReviewView(discord.ui.View):
 # MODAL: Player Appeal Submission Modal
 # ─────────────────────────────────────────────────────────────────────────────
 class PlayerBanAppealModal(discord.ui.Modal, title="🛡️ DTEmpire Ban Appeal Form"):
-    ign = discord.ui.TextInput(
-        label="Minecraft In-Game Name (IGN)",
-        placeholder="e.g. Steve",
-        min_length=3,
-        max_length=16,
-        required=True
-    )
-    ban_id = discord.ui.TextInput(
-        label="Ban ID (Shown on Kick/Ban Screen)",
-        placeholder="e.g. #WD-94820194",
-        max_length=32,
-        required=False
-    )
-    activity = discord.ui.TextInput(
-        label="What were you doing when banned?",
-        style=discord.TextStyle.paragraph,
-        placeholder="Mining in cave, sprint-jumping, fighting mobs, high ping lag...",
-        max_length=1000,
-        required=True
-    )
-    appeal_reason = discord.ui.TextInput(
-        label="Why should you be unbanned?",
-        style=discord.TextStyle.paragraph,
-        placeholder="Explain why this detection was a mistake or why you deserve a second chance...",
-        max_length=1000,
-        required=True
-    )
+    def __init__(self, default_ign: str = "", default_ban_id: str = ""):
+        super().__init__()
+        self.ign = discord.ui.TextInput(
+            label="Minecraft In-Game Name (IGN)",
+            placeholder="e.g. Steve",
+            default=default_ign,
+            min_length=3,
+            max_length=16,
+            required=True
+        )
+        self.ban_id = discord.ui.TextInput(
+            label="Ban ID (Shown on Kick/Ban Screen)",
+            placeholder="e.g. #WD-94820194",
+            default=default_ban_id,
+            max_length=32,
+            required=False
+        )
+        self.activity = discord.ui.TextInput(
+            label="What were you doing when banned?",
+            style=discord.TextStyle.paragraph,
+            placeholder="Mining in cave, sprint-jumping, fighting mobs, high ping lag...",
+            max_length=1000,
+            required=True
+        )
+        self.appeal_reason = discord.ui.TextInput(
+            label="Why should you be unbanned?",
+            style=discord.TextStyle.paragraph,
+            placeholder="Explain why this detection was a mistake or why you deserve a second chance...",
+            max_length=1000,
+            required=True
+        )
+        self.add_item(self.ign)
+        self.add_item(self.ban_id)
+        self.add_item(self.activity)
+        self.add_item(self.appeal_reason)
 
     async def on_submit(self, interaction: discord.Interaction):
         guild = interaction.guild
@@ -321,6 +329,32 @@ class PublicAppealLaunchView(discord.ui.View):
         await interaction.response.send_modal(PlayerBanAppealModal())
 
 
+class SpecificBanAppealView(discord.ui.View):
+    def __init__(self, ign: str = "", ban_id: str = ""):
+        super().__init__(timeout=None)
+        self.ign = ign
+        self.ban_id = ban_id
+
+    @discord.ui.button(label="Submit Ban Appeal", style=discord.ButtonStyle.primary, emoji="📩", custom_id="dtempire_specific_ban_btn")
+    async def click_appeal(self, interaction: discord.Interaction, button: discord.ui.Button):
+        ign = self.ign
+        ban_id = self.ban_id
+        if not ign and interaction.message:
+            for emb in interaction.message.embeds:
+                if not ign:
+                    raw_player = extract_field_value(emb, "Player")
+                    ign = re.sub(r"[`*_\s]", "", raw_player)
+                if not ban_id:
+                    raw_ban_id = extract_field_value(emb, "Ban ID")
+                    ban_id = re.sub(r"[`*_\s]", "", raw_ban_id)
+        if not ign and interaction.message:
+            m = re.search(r"Record: `([^`]+)` \((#[^)]+)\)", interaction.message.content or "")
+            if m:
+                ign = m.group(1)
+                ban_id = m.group(2)
+        await interaction.response.send_modal(PlayerBanAppealModal(default_ign=ign, default_ban_id=ban_id))
+
+
 # ─────────────────────────────────────────────────────────────────────────────
 # BOT INITIALIZATION
 # ─────────────────────────────────────────────────────────────────────────────
@@ -335,7 +369,29 @@ async def on_ready():
     logger.info(f"Bot connected as {bot.user} (ID: {bot_id})")
     bot.add_view(PublicAppealLaunchView())
     bot.add_view(StaffAppealReviewView())
+    bot.add_view(SpecificBanAppealView())
     logger.info("Registered persistent Ban Appeal UI views")
+
+
+@bot.event
+async def on_message(message: discord.Message):
+    await bot.process_commands(message)
+
+    # Automatically attach an appeal button under Watchdog Ban webhook cards!
+    if message.webhook_id and message.embeds:
+        for embed in message.embeds:
+            if embed.title and "WATCHDOG BAN ENFORCED" in embed.title:
+                raw_player = extract_field_value(embed, "Player")
+                ign = re.sub(r"[`*_\s]", "", raw_player) or "Player"
+                raw_ban_id = extract_field_value(embed, "Ban ID")
+                ban_id = re.sub(r"[`*_\s]", "", raw_ban_id) or "N/A"
+
+                reply_view = SpecificBanAppealView(ign=ign, ban_id=ban_id)
+                await message.reply(
+                    f"⚖️ **Ban Record: `{ign}` ({ban_id})**\n"
+                    f"If you believe this ban was a false detection, click below to submit your appeal:",
+                    view=reply_view
+                )
 
 
 @bot.command(name="setappeallog", aliases=["setappeals", "appeallog"])
